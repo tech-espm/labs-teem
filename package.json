@@ -1,0 +1,43 @@
+{
+  "name": "teem",
+  "version": "0.0.2",
+  "description": "Opinionated TypeScript wrapper around Express.js, EJS and MySQL.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "homepage": "https://github.com/tech-espm/labs-teem",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tech-espm/labs-teem.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tech-espm/labs-teem/issues"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "ejs",
+    "express",
+    "expressjs",
+    "mysql",
+    "typescript",
+    "wrapper"
+  ],
+  "author": "ESPM",
+  "license": "MIT",
+  "dependencies": {
+    "compression": "1.7.4",
+    "cookie-parser": "1.4.5",
+    "ejs": "3.1.5",
+    "express": "4.17.1",
+    "express-ejs-layouts": "2.5.0",
+    "lru-cache": "6.0.0",
+    "mysql": "2.18.1"
+  },
+  "devDependencies": {
+    "@types/express": "4.17.11",
+    "@types/express-serve-static-core": "4.17.18",
+    "@types/mysql": "2.15.17",
+    "@types/node": "14.14.21"
+  }
+}
