@@ -1,6 +1,6 @@
 {
   "name": "teem",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Opinionated TypeScript wrapper around Express.js, EJS and MySQL.",
   "main": "index.js",
   "types": "index.d.ts",
@@ -23,8 +23,20 @@
     "typescript",
     "wrapper"
   ],
-  "author": "ESPM",
+  "author": {
+    "name": "Carlos Rafael Gimenes das Neves",
+    "email": "carlosrafaelgn@gmail.com",
+    "url": "https://github.com/carlosrafaelgn"
+  },
+  "contributors": [
+    {
+      "name": "Carlos Rafael Gimenes das Neves",
+      "email": "carlosrafaelgn@gmail.com",
+      "url": "https://github.com/carlosrafaelgn"
+    }
+  ],
   "license": "MIT",
+  "bundledDependencies": [],
   "dependencies": {
     "compression": "1.7.4",
     "cookie-parser": "1.4.5",

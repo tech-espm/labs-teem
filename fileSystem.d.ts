@@ -1,21 +1,32 @@
 ﻿/// <reference types="node" />
 import fs = require("fs");
-export interface BufferContainer {
-    buffer: Buffer;
-}
-export declare class FileSystem {
-    static rootDir: string;
-    private static readonly wrongSlash;
-    private static fixRelativePath;
-    static absolutePath(relativePath: string, filename?: string): string;
-    static validateFilename(filename: string): string;
-    static createDirectory(relativePath: string, options: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
-    static deleteDirectory(relativePath: string): Promise<void>;
-    static deleteFilesAndDirectory(relativePath: string): Promise<void>;
-    static renameFile(currentRelativePath: string, newRelativePath: string): Promise<void>;
-    static deleteFile(relativePath: string): Promise<void>;
-    static fileExists(relativePath: string): Promise<boolean>;
-    static saveBuffer(buffer: Buffer | BufferContainer, directoryRelativePath: string, filename: string, mode?: fs.Mode): Promise<void>;
-    static createNewEmptyFile(directoryRelativePath: string, filename: string, mode?: fs.Mode): Promise<void>;
-    static appendBufferToExistingFile(buffer: Buffer | BufferContainer, directoryRelativePath: string, filename: string): Promise<void>;
-}
+declare const _default: {
+    new (): {};
+    rootDir: string;
+    readonly wrongSlash: RegExp;
+    readonly sepCode: number;
+    readonly invalidStart: "../" | "..\\";
+    readonly invalidMiddle: "/../" | "\\..\\";
+    fixProjectRelativePath(projectRelativePath: string): string;
+    absolutePath(projectRelativePath: string): string;
+    validateUploadedFilename(filename: string): string;
+    createDirectory(projectRelativePath: string, options?: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
+    deleteDirectory(projectRelativePath: string): Promise<void>;
+    deleteFilesAndDirectory(projectRelativePath: string): Promise<void>;
+    renameFile(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void>;
+    deleteFile(projectRelativePath: string): Promise<void>;
+    fileExists(projectRelativePath: string): Promise<boolean>;
+    createNewEmptyFile(projectRelativePath: string, mode?: fs.Mode): Promise<void>;
+    save(projectRelativePath: string, data: string | Buffer, flag: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    saveBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    saveText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    saveBufferToNewFile(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    saveTextToNewFile(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    append(projectRelativePath: string, data: string | Buffer, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    appendBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    appendText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    appendToExistingFile(projectRelativePath: string, data: string | Buffer, encoding?: BufferEncoding): Promise<void>;
+    appendBufferToExistingFile(projectRelativePath: string, buffer: Buffer): Promise<void>;
+    appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void>;
+};
+export = _default;

@@ -1,7 +1,6 @@
 ﻿/// <reference types="node" />
 import express = require("express");
 import fs = require("fs");
-import { BufferContainer } from "./fileSystem";
 import { JSONResponse } from "./json";
 import type { PoolConfig } from "mysql";
 import type { ServeStaticOptions } from "serve-static";
@@ -17,17 +16,23 @@ declare namespace app {
     }
 }
 interface FileSystem {
-    absolutePath(relativePath: string, filename?: string): string;
-    validateFilename(filename: string): string;
-    createDirectory(relativePath: string, options: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
-    deleteDirectory(relativePath: string): Promise<void>;
-    deleteFilesAndDirectory(relativePath: string): Promise<void>;
-    renameFile(currentRelativePath: string, newRelativePath: string): Promise<void>;
-    deleteFile(relativePath: string): Promise<void>;
-    fileExists(relativePath: string): Promise<boolean>;
-    saveBuffer(buffer: Buffer | BufferContainer, directoryRelativePath: string, filename: string, mode?: fs.Mode): Promise<void>;
-    createNewEmptyFile(directoryRelativePath: string, filename: string, mode?: fs.Mode): Promise<void>;
-    appendBufferToExistingFile(buffer: Buffer | BufferContainer, directoryRelativePath: string, filename: string): Promise<void>;
+    absolutePath(projectRelativePath: string): string;
+    validateUploadedFilename(filename: string): string;
+    createDirectory(projectRelativePath: string, options?: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
+    deleteDirectory(projectRelativePath: string): Promise<void>;
+    deleteFilesAndDirectory(projectRelativePath: string): Promise<void>;
+    renameFile(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void>;
+    deleteFile(projectRelativePath: string): Promise<void>;
+    fileExists(projectRelativePath: string): Promise<boolean>;
+    createNewEmptyFile(projectRelativePath: string, mode?: fs.Mode): Promise<void>;
+    saveBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    saveText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    saveBufferToNewFile(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    saveTextToNewFile(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    appendBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    appendText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    appendBufferToExistingFile(projectRelativePath: string, buffer: Buffer): Promise<void>;
+    appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void>;
 }
 interface JSONRequest {
     get(url: string, headers?: any): Promise<JSONResponse>;
@@ -76,11 +81,8 @@ interface Sql {
      */
     connect<T>(callback: (sql: app.Sql) => Promise<T>): Promise<T>;
 }
-interface Action {
-    (): Promise<void> | void;
-}
 interface ErrorHandler {
-    (err: any, req: app.Request, res: app.Response, next: app.NextFunction): void;
+    (err: any, req: app.Request, res: app.Response, next: app.NextFunction): Promise<void> | void;
 }
 interface Config {
     root?: string;
@@ -105,12 +107,13 @@ interface Config {
     useClassNamesAsRoutes?: boolean;
     allMethodsRoutesAllByDefault?: boolean;
     allMethodsRoutesHiddenByDefault?: boolean;
-    preInitCallback?: Action;
-    preRouteCallback?: Action;
-    postRouteCallback?: Action;
+    preInitCallback?: () => void;
+    preRouteCallback?: () => void;
+    postRouteCallback?: () => void;
+    listenCallback?: () => void;
     errorHandler?: ErrorHandler;
     htmlErrorHandler?: ErrorHandler;
-    listenHandler?: Action;
+    setupOnly?: boolean;
 }
 declare const app: {
     /**
@@ -545,7 +548,7 @@ declare const app: {
     /**
      * The actual Express.js app.
      */
-    express: express.Express;
+    express: import("express-serve-static-core").Express;
     /**
      * Provides basic `Promise` wrappers around common file system operations, with relatives paths using `app.dir.project` as the base directory.
      *
@@ -563,23 +566,11 @@ declare const app: {
      */
     sql: Sql;
     /**
-     * Creates, configures and starts the Express.js app.
+     * Creates, configures and starts listening the Express.js app.
      *
-     * This is operation is asynchronous and errors must be handled like errors from regular promises:
-     *
-     * ```ts
-     * app.run(...).catch((reason) => {
-     *     // Handle errors here
-     * });
-     * ```
-     *
-     * The following construct can be used just to display any possible errors without further handling them:
-     *
-     * ```ts
-     * app.run(...).catch(console.error);
-     * ```
+     * For more advanced scenarios, such as using WebSockets, it is advisable to set `config.setupOnly = true`, which makes `run()` not to call `expressApp.listen()` at the end of the setup process.
      * @param config Optional settings used to configure the routes, paths and so on.
      */
-    run: (config?: Config) => Promise<void>;
+    run: (config?: Config) => void;
 };
 export = app;

@@ -1,7 +1,7 @@
 import express = require("express");
 import fs = require("fs");
 import path = require("path");
-import { BufferContainer, FileSystem as FS } from "./fileSystem";
+import FS = require("./fileSystem");
 import { JSONResponse, JSONRequest as JSONReq } from "./json";
 
 import type { PoolConfig } from "mysql";
@@ -31,17 +31,23 @@ namespace app {
 
 // @@@ Doc
 interface FileSystem {
-	absolutePath(relativePath: string, filename?: string): string;
-	validateFilename(filename: string): string;
-	createDirectory(relativePath: string, options: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
-	deleteDirectory(relativePath: string): Promise<void>;
-	deleteFilesAndDirectory(relativePath: string): Promise<void>;
-	renameFile(currentRelativePath: string, newRelativePath: string): Promise<void>;
-	deleteFile(relativePath: string): Promise<void>;
-	fileExists(relativePath: string): Promise<boolean>;
-	saveBuffer(buffer: Buffer | BufferContainer, directoryRelativePath: string, filename: string, mode?: fs.Mode): Promise<void>;
-	createNewEmptyFile(directoryRelativePath: string, filename: string, mode?: fs.Mode): Promise<void>;
-	appendBufferToExistingFile(buffer: Buffer | BufferContainer, directoryRelativePath: string, filename: string): Promise<void>;
+	absolutePath(projectRelativePath: string): string;
+	validateUploadedFilename(filename: string): string;
+	createDirectory(projectRelativePath: string, options?: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
+	deleteDirectory(projectRelativePath: string): Promise<void>;
+	deleteFilesAndDirectory(projectRelativePath: string): Promise<void>;
+	renameFile(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void>;
+	deleteFile(projectRelativePath: string): Promise<void>;
+	fileExists(projectRelativePath: string): Promise<boolean>;
+	createNewEmptyFile(projectRelativePath: string, mode?: fs.Mode): Promise<void>;
+	saveBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+	saveText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+	saveBufferToNewFile(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+	saveTextToNewFile(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+	appendBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+	appendText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+	appendBufferToExistingFile(projectRelativePath: string, buffer: Buffer): Promise<void>;
+	appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void>;
 }
 
 // @@@ Doc
@@ -94,12 +100,8 @@ interface Sql {
 	connect<T>(callback: (sql: app.Sql) => Promise<T>): Promise<T>;
 }
 
-interface Action {
-	(): Promise<void> | void;
-}
-
 interface ErrorHandler {
-	(err: any, req: app.Request, res: app.Response, next: app.NextFunction): void;
+	(err: any, req: app.Request, res: app.Response, next: app.NextFunction): Promise<void> | void;
 }
 
 interface Config {
@@ -130,12 +132,15 @@ interface Config {
 	allMethodsRoutesAllByDefault?: boolean;
 	allMethodsRoutesHiddenByDefault?: boolean;
 
-	preInitCallback?: Action;
-	preRouteCallback?: Action;
-	postRouteCallback?: Action;
+	preInitCallback?: () => void;
+	preRouteCallback?: () => void;
+	postRouteCallback?: () => void;
+	listenCallback?: () => void;
+
 	errorHandler?: ErrorHandler;
 	htmlErrorHandler?: ErrorHandler;
-	listenHandler?: Action;
+
+	setupOnly?: boolean;
 }
 
 // Private Interfaces and Functions
@@ -151,8 +156,7 @@ interface InternalRoute {
 	route: string;
 	httpMethod: string;
 	routeMiddleware: any[];
-	userHandler: Function;
-	thisArg: any;
+	boundUserHandler: Function;
 }
 
 /** @internal */
@@ -190,7 +194,7 @@ function extractRoutesFromObject(config: Config, validHttpMethods: ValidHttpMeth
 		if (!n || n === "constructor")
 			continue;
 
-		const f = obj[n];
+		const f = obj[n] as Function;
 		if (f && (typeof f) === "function") {
 			let fullMethodRoute = f["routeFullMethodRoute"] as string,
 				routeMethodName = f["routeMethodName"] as string,
@@ -206,6 +210,9 @@ function extractRoutesFromObject(config: Config, validHttpMethods: ValidHttpMeth
 
 			if (httpHidden || (config.allMethodsRoutesHiddenByDefault && (!httpMethods || !httpMethods.length)))
 				continue;
+
+			if (f.length > 3)
+				throw new Error(`Function "${f.name}", in file ${absolutePath}, should have 3 parameters at most`);
 
 			if (fullMethodRoute) {
 				if (!fullMethodRoute.startsWith("/"))
@@ -232,8 +239,7 @@ function extractRoutesFromObject(config: Config, validHttpMethods: ValidHttpMeth
 					route: fullMethodRoute,
 					httpMethod: (config.allMethodsRoutesAllByDefault ? "all" : "get"),
 					routeMiddleware,
-					userHandler: f,
-					thisArg
+					boundUserHandler: f.bind(thisArg)
 				});
 			} else {
 				httpMethods.sort();
@@ -258,8 +264,7 @@ function extractRoutesFromObject(config: Config, validHttpMethods: ValidHttpMeth
 						route: fullMethodRoute,
 						httpMethod: "all",
 						routeMiddleware,
-						userHandler: f,
-						thisArg
+						boundUserHandler: f.bind(thisArg)
 					});
 				} else {
 					const boundUserHandler = f.bind(thisArg);
@@ -270,8 +275,7 @@ function extractRoutesFromObject(config: Config, validHttpMethods: ValidHttpMeth
 							route: fullMethodRoute,
 							httpMethod: httpMethods[m],
 							routeMiddleware,
-							userHandler: f,
-							thisArg
+							boundUserHandler
 						});
 				}
 			}
@@ -376,12 +380,76 @@ function extractRoutesFromDir(config: Config, validHttpMethods: ValidHttpMethods
 	}
 }
 
+// I tested the five techniques below in Node 12, and the resulting
+// performance was almost the same for all of them...
+//
+//function createHandlerApply(userHandler: Function, thisArg: any): Function {
+//	return function() {
+//		const r = userHandler.apply(thisArg, arguments);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+//
+//function createHandlerBindApply(userHandler: Function, thisArg: any): Function {
+//	const boundUserHandler = userHandler.bind(thisArg);
+//	return function() {
+//		// I know this is an overkill, because bind() already sets "this" for the function...
+//		// But, I created this just for the sake of test completeness.
+//		const r = boundUserHandler.apply(thisArg, arguments);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+//
+//function createHandlerCall(userHandler: Function, thisArg: any): Function {
+//	return function(...args: any[]) {
+//		const r = userHandler.call(thisArg, ...args);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+//
+//function createHandlerBindCall(userHandler: Function, thisArg: any): Function {
+//	const boundUserHandler = userHandler.bind(thisArg);
+//	return function(...args: any[]) {
+//		// I know this is an overkill, because bind() already sets "this" for the function...
+//		// But, I created this just for the sake of test completeness.
+//		const r = boundUserHandler.call(thisArg, ...args);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+//
+//function createHandlerBindArgs(userHandler: Function, thisArg: any): Function {
+//	const boundUserHandler = userHandler.bind(thisArg);
+//	return function(...args: any[]) {
+//		const r = boundUserHandler(...args);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+
 /** @internal */
-function createHandler(userHandler: Function, thisArg: any): Function {
-	return function() {
-		const r = userHandler.apply(thisArg, arguments);
+function createRegularHandler(boundUserHandler: Function): Function {
+	// Express.js checks the handler's length to determine if it is a regular handler,
+	// or an error handler. For a handler to be considered an error handler, it
+	// must at most 3 parameters.
+	return function(req: express.Request, res: express.Response, next: express.NextFunction) {
+		const r = boundUserHandler(req, res, next);
 		if (r)
-			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+			Promise.resolve(r).catch(next);
+	};
+}
+
+function createErrorHandler(boundUserHandler: ErrorHandler): ErrorHandler {
+	// Express.js checks the handler's length to determine if it is a regular handler,
+	// or an error handler. For a handler to be considered an error handler, it
+	// must have 4 parameters.
+	return function(err: any, req: express.Request, res: express.Response, next: express.NextFunction) {
+		const r = boundUserHandler(err, req, res, next);
+		if (r)
+			Promise.resolve(r).catch(next);
 	};
 }
 
@@ -395,11 +463,11 @@ function registerRoutes(appExpress: express.Express, routes: InternalRoute[]): v
 				args = [route.route] as any[];
 
 			args.push.apply(args, route.routeMiddleware);
-			args.push(createHandler(route.userHandler, route.thisArg));
+			args.push(createRegularHandler(route.boundUserHandler));
 
 			m.apply(m, args);
 		} else {
-			appExpress[route.httpMethod](route.route, createHandler(route.userHandler, route.thisArg));
+			appExpress[route.httpMethod](route.route, createRegularHandler(route.boundUserHandler));
 		}
 	}
 }
@@ -423,18 +491,29 @@ function notFoundHandler(req: express.Request, res: express.Response, next: expr
 }
 
 /** @internal */
-function errorHandler(err: any, req: express.Request, res: express.Response, next: express.NextFunction): void {
+function errorHandlerWithCustomHtmlError(err: any, req: express.Request, res: express.Response, next: express.NextFunction): void {
 	err.status = (parseInt(err.status) || 500);
 	res.status(err.status);
 
-	if (req.path.indexOf("/api/") >= 0 || req.accepts("json") || !viewErrorHandler)
+	if (req.path.indexOf("/api/") >= 0 || (req.headers.accept && req.headers.accept.indexOf("application/json") >= 0))
 		res.json(err.message || (err.status === 404 ? "Not found" : "Internal error"));
 	else
-		viewErrorHandler(err, req, res, next);
+		htmlErrorHandler(err, req, res, next);
 }
 
 /** @internal */
-let viewErrorHandler: ErrorHandler = null;
+function errorHandlerWithoutCustomHtmlError(err: any, req: express.Request, res: express.Response, next: express.NextFunction): void {
+	err.status = (parseInt(err.status) || 500);
+	res.status(err.status);
+
+	if (req.path.indexOf("/api/") >= 0 || (req.headers.accept && req.headers.accept.indexOf("application/json") >= 0))
+		res.json(err.message || (err.status === 404 ? "Not found" : "Internal error"));
+	else
+		res.contentType("text/plain").send(err.message || (err.status === 404 ? "Not found" : "Internal error"));
+}
+
+/** @internal */
+let htmlErrorHandler: ErrorHandler = null;
 
 const app = {
 	// Route Decorators
@@ -896,7 +975,7 @@ const app = {
 	/**
 	 * The actual Express.js app.
 	 */
-	express: null as express.Express,
+	express: express(),
 
 	/**
 	 * Provides basic `Promise` wrappers around common file system operations, with relatives paths using `app.dir.project` as the base directory.
@@ -920,24 +999,12 @@ const app = {
 	// Methods
 
 	/**
-	 * Creates, configures and starts the Express.js app.
+	 * Creates, configures and starts listening the Express.js app.
 	 * 
-	 * This is operation is asynchronous and errors must be handled like errors from regular promises:
-	 * 
-	 * ```ts
-	 * app.run(...).catch((reason) => {
-	 *     // Handle errors here
-	 * });
-	 * ```
-	 * 
-	 * The following construct can be used just to display any possible errors without further handling them:
-	 * 
-	 * ```ts
-	 * app.run(...).catch(console.error);
-	 * ```
+	 * For more advanced scenarios, such as using WebSockets, it is advisable to set `config.setupOnly = true`, which makes `run()` not to call `expressApp.listen()` at the end of the setup process.
 	 * @param config Optional settings used to configure the routes, paths and so on.
 	 */
-	run: async function (config?: Config): Promise<void> {
+	run: function (config?: Config): void {
 		if (!config)
 			config = {};
 
@@ -946,7 +1013,7 @@ const app = {
 
 		app.dir.initial = process.cwd();
 
-		const appExpress = express(),
+		const appExpress = app.express,
 			projectDir = (config.projectDir || app.dir.initial),
 			// Using require.main.path does not work on some cloud providers, because
 			// they perform additional requires of their own before actually executing
@@ -961,7 +1028,6 @@ const app = {
 				routesDir.splice(i, 1);
 		}
 
-		app.express = appExpress;
 		app.root = ((!config.root || config.root === "/") ? "" : (config.root.endsWith("/") ? config.root.substr(0, config.root.length - 1) : config.root));
 		if (app.root && !app.root.startsWith("/"))
 			app.root = "/" + app.root;
@@ -998,7 +1064,7 @@ const app = {
 			appExpress.use(require("compression")());
 
 		if (config.preInitCallback)
-			await config.preInitCallback();
+			config.preInitCallback();
 
 		if (staticFilesDir)
 			appExpress.use(express.static(staticFilesDir, config.staticFilesConfig || {
@@ -1032,7 +1098,7 @@ const app = {
 			appExpress.use(removeCacheHeader);
 
 		if (config.preRouteCallback)
-			await config.preRouteCallback();
+			config.preRouteCallback();
 
 		if (config.logRoutesToConsole)
 			console.log("HTTP Method - Full Route - File");
@@ -1084,29 +1150,24 @@ const app = {
 		}
 
 		if (config.postRouteCallback)
-			await config.postRouteCallback();
+			config.postRouteCallback();
 
 		appExpress.use(notFoundHandler);
 
 		if (config.errorHandler) {
 			if (config.errorHandler.length !== 4)
 				throw new Error("config.errorHandler must have 4 parameters");
-			appExpress.use(config.errorHandler);
-		} else {
-			if (config.htmlErrorHandler) {
-				if (config.htmlErrorHandler.length !== 4)
-					throw new Error("config.htmlErrorHandler must have 4 parameters");
-				viewErrorHandler = config.htmlErrorHandler;
-			}
-			appExpress.use(errorHandler);
+			appExpress.use(createErrorHandler(config.errorHandler) as ErrorHandler);
+		} else if (config.htmlErrorHandler) {
+			if (config.htmlErrorHandler.length !== 4)
+				throw new Error("config.htmlErrorHandler must have 4 parameters");
+			htmlErrorHandler = createErrorHandler(config.htmlErrorHandler) as ErrorHandler;
+			appExpress.use(errorHandlerWithCustomHtmlError);
 		}
+		appExpress.use(errorHandlerWithoutCustomHtmlError);
 
-		if (config.listenHandler)
-			await config.listenHandler();
-		else
-			return new Promise<void>((resolve, reject) => {
-				appExpress.listen(app.port, app.localIp, resolve);
-			});
+		if (!config.setupOnly)
+			appExpress.listen(app.port, app.localIp, config.listenCallback);
 	}
 };
 

@@ -1,202 +1,281 @@
 ﻿"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.FileSystem = void 0;
+var _a;
 const fs = require("fs");
 const path = require("path");
-class FileSystem {
-    static fixRelativePath(relativePath, slashsValid) {
-        if (!relativePath ||
-            relativePath.charAt(0) === "." ||
-            relativePath.indexOf("..") >= 0 ||
-            relativePath.indexOf("*") >= 0 ||
-            relativePath.indexOf("?") >= 0 ||
-            relativePath.indexOf(">") >= 0 ||
-            relativePath.indexOf("<") >= 0 ||
-            relativePath.indexOf("|") >= 0 ||
-            (!slashsValid && (relativePath.indexOf("\\") >= 0 || relativePath.indexOf("/") >= 0)))
-            throw new Error("Invalid relative path: " + relativePath);
-        return relativePath.replace(FileSystem.wrongSlash, path.sep);
-    }
-    static absolutePath(relativePath, filename) {
-        if (filename) {
-            if (!(filename = FileSystem.validateFilename(filename)))
-                throw new Error("Invalid filename: " + filename);
-            return path.join(FileSystem.rootDir, FileSystem.fixRelativePath(relativePath, true), filename);
+module.exports = (_a = class FileSystem {
+        static fixProjectRelativePath(projectRelativePath) {
+            if (projectRelativePath === "")
+                return projectRelativePath;
+            if (!projectRelativePath)
+                throw new Error("Invalid project relative path: " + projectRelativePath);
+            projectRelativePath = projectRelativePath.replace(FileSystem.wrongSlash, path.sep);
+            if (projectRelativePath.charCodeAt(0) === FileSystem.sepCode)
+                projectRelativePath = projectRelativePath.substr(1);
+            if (projectRelativePath.startsWith(FileSystem.invalidStart) ||
+                projectRelativePath.indexOf(FileSystem.invalidMiddle) >= 0)
+                throw new Error("Invalid project relative path: " + projectRelativePath);
+            return projectRelativePath;
         }
-        return path.join(FileSystem.rootDir, FileSystem.fixRelativePath(relativePath, true));
-    }
-    static validateFilename(filename) {
-        return ((!filename ||
-            !(filename = filename.trim()) ||
-            filename.charAt(0) === "." ||
-            filename.indexOf("..") >= 0 ||
-            filename.indexOf("*") >= 0 ||
-            filename.indexOf("?") >= 0 ||
-            filename.indexOf(">") >= 0 ||
-            filename.indexOf("<") >= 0 ||
-            filename.indexOf("|") >= 0 ||
-            filename.indexOf("\\") >= 0 ||
-            filename.indexOf("/") >= 0) ? null : filename);
-    }
-    static async createDirectory(relativePath, options) {
-        relativePath = FileSystem.fixRelativePath(relativePath, true);
-        return new Promise((resolve, reject) => {
-            try {
-                fs.mkdir(path.join(FileSystem.rootDir, relativePath), options || 0o777, (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
+        static absolutePath(projectRelativePath) {
+            return path.join(FileSystem.rootDir, FileSystem.fixProjectRelativePath(projectRelativePath));
+        }
+        static validateUploadedFilename(filename) {
+            // The rules here are basicaly a mix between safety, cross-OS compatibility, actual rules...
+            // https://stackoverflow.com/q/1976007/3569421
+            if (!filename || !(filename = filename.trim()))
+                return null;
+            let valid = false;
+            for (let i = filename.length - 1; i >= 0; i--) {
+                const c = filename.charCodeAt(i);
+                if (c < 32)
+                    return null;
+                switch (c) {
+                    case 0x22: // "
+                    case 0x2A: // *
+                    case 0x2F: // /
+                    case 0x3A: // :
+                    case 0x3C: // <
+                    case 0x3E: // >
+                    case 0x3F: // ?
+                    case 0x5C: // \
+                    case 0x7C: // |
+                    case 0x7F:
+                        return null;
+                    case 0x20: // space
+                    case 0x2E: // .
+                        break;
+                    default:
+                        valid = true;
+                        break;
+                }
             }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-    static async deleteDirectory(relativePath) {
-        if (!(relativePath = FileSystem.fixRelativePath(relativePath, true)))
-            throw new Error("Invalid relative path: " + relativePath);
-        return new Promise((resolve, reject) => {
-            try {
-                fs.rmdir(path.join(FileSystem.rootDir, relativePath), { recursive: false }, (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-    static async deleteFilesAndDirectory(relativePath) {
-        if (!(relativePath = FileSystem.fixRelativePath(relativePath, true)))
-            throw new Error("Invalid relative path: " + relativePath);
-        return new Promise((resolve, reject) => {
-            try {
-                fs.rmdir(path.join(FileSystem.rootDir, relativePath), { recursive: true }, (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-    static async renameFile(currentRelativePath, newRelativePath) {
-        if (!(currentRelativePath = FileSystem.fixRelativePath(currentRelativePath, true)))
-            throw new Error("Invalid current relative path: " + currentRelativePath);
-        if (!(newRelativePath = FileSystem.fixRelativePath(newRelativePath, true)))
-            throw new Error("Invalid new relative path: " + newRelativePath);
-        return new Promise((resolve, reject) => {
-            try {
-                fs.rename(path.join(FileSystem.rootDir, currentRelativePath), path.join(FileSystem.rootDir, newRelativePath), (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-    static async deleteFile(relativePath) {
-        if (!(relativePath = FileSystem.fixRelativePath(relativePath, true)))
-            throw new Error("Invalid relative path: " + relativePath);
-        return new Promise((resolve, reject) => {
-            try {
-                fs.unlink(path.join(FileSystem.rootDir, relativePath), (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-    static async fileExists(relativePath) {
-        if (!(relativePath = FileSystem.fixRelativePath(relativePath, true)))
-            throw new Error("Invalid relative path: " + relativePath);
-        return new Promise((resolve, reject) => {
-            try {
-                fs.access(path.join(FileSystem.rootDir, relativePath), fs.constants.F_OK, (err) => {
-                    resolve(!!err);
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-    static async saveBuffer(buffer, directoryRelativePath, filename, mode) {
-        return new Promise((resolve, reject) => {
-            try {
-                const options = {
-                    flag: "w"
-                };
-                if (mode !== undefined)
-                    options.mode = mode;
-                fs.writeFile(FileSystem.absolutePath(directoryRelativePath, filename), buffer.buffer || buffer, options, (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-    static async createNewEmptyFile(directoryRelativePath, filename, mode) {
-        return new Promise((resolve, reject) => {
-            try {
-                const options = {
-                    encoding: "ascii",
-                    flag: "wx"
-                };
-                if (mode !== undefined)
-                    options.mode = mode;
-                fs.writeFile(FileSystem.absolutePath(directoryRelativePath, filename), "", options, (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-    static async appendBufferToExistingFile(buffer, directoryRelativePath, filename) {
-        return new Promise((resolve, reject) => {
-            try {
-                const options = {
-                    flag: "r+"
-                };
-                fs.appendFile(FileSystem.absolutePath(directoryRelativePath, filename), buffer.buffer || buffer, options, (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
-}
-exports.FileSystem = FileSystem;
-FileSystem.wrongSlash = ((path.sep === "/") ? /\\/g : /\//g);
+            return (valid ? filename : null);
+        }
+        static createDirectory(projectRelativePath, options) {
+            return new Promise((resolve, reject) => {
+                try {
+                    fs.mkdir(FileSystem.absolutePath(projectRelativePath), options, (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static deleteDirectory(projectRelativePath) {
+            return new Promise((resolve, reject) => {
+                try {
+                    fs.rmdir(FileSystem.absolutePath(projectRelativePath), { recursive: false }, (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static deleteFilesAndDirectory(projectRelativePath) {
+            return new Promise((resolve, reject) => {
+                try {
+                    fs.rmdir(FileSystem.absolutePath(projectRelativePath), { recursive: true }, (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static renameFile(currentProjectRelativePath, newProjectRelativePath) {
+            return new Promise((resolve, reject) => {
+                try {
+                    fs.rename(FileSystem.absolutePath(currentProjectRelativePath), FileSystem.absolutePath(newProjectRelativePath), (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static deleteFile(projectRelativePath) {
+            return new Promise((resolve, reject) => {
+                try {
+                    fs.unlink(FileSystem.absolutePath(projectRelativePath), (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static fileExists(projectRelativePath) {
+            return new Promise((resolve, reject) => {
+                try {
+                    fs.access(FileSystem.absolutePath(projectRelativePath), fs.constants.F_OK, (err) => {
+                        resolve(!err);
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static createNewEmptyFile(projectRelativePath, mode) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const options = {
+                        encoding: "ascii",
+                        flag: "wx"
+                    };
+                    if (mode !== undefined)
+                        options.mode = mode;
+                    fs.writeFile(FileSystem.absolutePath(projectRelativePath), "", options, (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static save(projectRelativePath, data, flag, mode, encoding) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const options = {
+                        flag: flag
+                    };
+                    if (mode !== undefined)
+                        options.mode = mode;
+                    if (encoding !== undefined)
+                        options.encoding = encoding;
+                    fs.writeFile(FileSystem.absolutePath(projectRelativePath), data, options, (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static saveBuffer(projectRelativePath, buffer, mode) {
+            return FileSystem.save(projectRelativePath, buffer, "w", mode);
+        }
+        static saveText(projectRelativePath, text, mode, encoding) {
+            return FileSystem.save(projectRelativePath, text, "w", mode, encoding || "utf8");
+        }
+        static saveBufferToNewFile(projectRelativePath, buffer, mode) {
+            return FileSystem.save(projectRelativePath, buffer, "wx", mode);
+        }
+        static saveTextToNewFile(projectRelativePath, text, mode, encoding) {
+            return FileSystem.save(projectRelativePath, text, "wx", mode, encoding || "utf8");
+        }
+        static append(projectRelativePath, data, mode, encoding) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const options = {
+                        flag: "a"
+                    };
+                    if (mode !== undefined)
+                        options.mode = mode;
+                    if (encoding !== undefined)
+                        options.encoding = encoding;
+                    fs.appendFile(FileSystem.absolutePath(projectRelativePath), data, options, (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static appendBuffer(projectRelativePath, buffer, mode) {
+            return FileSystem.append(projectRelativePath, buffer, mode);
+        }
+        static appendText(projectRelativePath, text, mode, encoding) {
+            return FileSystem.append(projectRelativePath, text, mode, encoding || "utf8");
+        }
+        static appendToExistingFile(projectRelativePath, data, encoding) {
+            return new Promise((resolve, reject) => {
+                try {
+                    // Unfortunately, using fs.appendFile() with "r+" has the same effect as fs.writeFile()...
+                    fs.open(FileSystem.fixProjectRelativePath(projectRelativePath), "r+", (err, fd) => {
+                        if (err) {
+                            reject(err);
+                            return;
+                        }
+                        function cleanup(err) {
+                            if (fd) {
+                                try {
+                                    fs.close(fd, (closeErr) => {
+                                        if (err)
+                                            reject(err);
+                                        else if (closeErr)
+                                            reject(closeErr);
+                                        else
+                                            resolve();
+                                    });
+                                }
+                                catch (e) {
+                                    reject(e);
+                                }
+                            }
+                            else {
+                                reject(err || new Error("Unknown error"));
+                            }
+                        }
+                        fs.fstat(fd, (err, stats) => {
+                            if (err) {
+                                cleanup(err);
+                                return;
+                            }
+                            if (encoding)
+                                fs.write(fd, data, stats.size, encoding, cleanup);
+                            else
+                                fs.write(fd, data, 0, data.length, stats.size, cleanup);
+                        });
+                    });
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        static appendBufferToExistingFile(projectRelativePath, buffer) {
+            return FileSystem.appendToExistingFile(projectRelativePath, buffer);
+        }
+        static appendTextToExistingFile(projectRelativePath, text, encoding) {
+            return FileSystem.appendToExistingFile(projectRelativePath, text, encoding || "utf8");
+        }
+    },
+    _a.wrongSlash = ((path.sep === "/") ? /\\/g : /\//g),
+    _a.sepCode = path.sep.charCodeAt(0),
+    _a.invalidStart = ((path.sep === "/") ? "../" : "..\\"),
+    _a.invalidMiddle = ((path.sep === "/") ? "/../" : "\\..\\"),
+    _a);

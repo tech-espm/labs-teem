@@ -2,7 +2,7 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const fileSystem_1 = require("./fileSystem");
+const FS = require("./fileSystem");
 const json_1 = require("./json");
 /** @internal */
 function httpGeneric(method) {
@@ -45,6 +45,8 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
             delete f["routeMiddleware"];
             if (httpHidden || (config.allMethodsRoutesHiddenByDefault && (!httpMethods || !httpMethods.length)))
                 continue;
+            if (f.length > 3)
+                throw new Error(`Function "${f.name}", in file ${absolutePath}, should have 3 parameters at most`);
             if (fullMethodRoute) {
                 if (!fullMethodRoute.startsWith("/"))
                     fullMethodRoute = "/" + fullMethodRoute;
@@ -69,8 +71,7 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
                     route: fullMethodRoute,
                     httpMethod: (config.allMethodsRoutesAllByDefault ? "all" : "get"),
                     routeMiddleware,
-                    userHandler: f,
-                    thisArg
+                    boundUserHandler: f.bind(thisArg)
                 });
             }
             else {
@@ -94,8 +95,7 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
                         route: fullMethodRoute,
                         httpMethod: "all",
                         routeMiddleware,
-                        userHandler: f,
-                        thisArg
+                        boundUserHandler: f.bind(thisArg)
                     });
                 }
                 else {
@@ -106,8 +106,7 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
                             route: fullMethodRoute,
                             httpMethod: httpMethods[m],
                             routeMiddleware,
-                            userHandler: f,
-                            thisArg
+                            boundUserHandler
                         });
                 }
             }
@@ -202,12 +201,74 @@ function extractRoutesFromDir(config, validHttpMethods, prefix, routes, dir) {
             extractRoutesFromDir(config, validHttpMethods, prefix + name + "/", routes, absolutePath);
     }
 }
+// I tested the five techniques below in Node 12, and the resulting
+// performance was almost the same for all of them...
+//
+//function createHandlerApply(userHandler: Function, thisArg: any): Function {
+//	return function() {
+//		const r = userHandler.apply(thisArg, arguments);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+//
+//function createHandlerBindApply(userHandler: Function, thisArg: any): Function {
+//	const boundUserHandler = userHandler.bind(thisArg);
+//	return function() {
+//		// I know this is an overkill, because bind() already sets "this" for the function...
+//		// But, I created this just for the sake of test completeness.
+//		const r = boundUserHandler.apply(thisArg, arguments);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+//
+//function createHandlerCall(userHandler: Function, thisArg: any): Function {
+//	return function(...args: any[]) {
+//		const r = userHandler.call(thisArg, ...args);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+//
+//function createHandlerBindCall(userHandler: Function, thisArg: any): Function {
+//	const boundUserHandler = userHandler.bind(thisArg);
+//	return function(...args: any[]) {
+//		// I know this is an overkill, because bind() already sets "this" for the function...
+//		// But, I created this just for the sake of test completeness.
+//		const r = boundUserHandler.call(thisArg, ...args);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
+//
+//function createHandlerBindArgs(userHandler: Function, thisArg: any): Function {
+//	const boundUserHandler = userHandler.bind(thisArg);
+//	return function(...args: any[]) {
+//		const r = boundUserHandler(...args);
+//		if (r)
+//			Promise.resolve(r).catch(arguments[arguments.length - 1]);
+//	};
+//}
 /** @internal */
-function createHandler(userHandler, thisArg) {
-    return function () {
-        const r = userHandler.apply(thisArg, arguments);
+function createRegularHandler(boundUserHandler) {
+    // Express.js checks the handler's length to determine if it is a regular handler,
+    // or an error handler. For a handler to be considered an error handler, it
+    // must at most 3 parameters.
+    return function (req, res, next) {
+        const r = boundUserHandler(req, res, next);
         if (r)
-            Promise.resolve(r).catch(arguments[arguments.length - 1]);
+            Promise.resolve(r).catch(next);
+    };
+}
+function createErrorHandler(boundUserHandler) {
+    // Express.js checks the handler's length to determine if it is a regular handler,
+    // or an error handler. For a handler to be considered an error handler, it
+    // must have 4 parameters.
+    return function (err, req, res, next) {
+        const r = boundUserHandler(err, req, res, next);
+        if (r)
+            Promise.resolve(r).catch(next);
     };
 }
 /** @internal */
@@ -217,11 +278,11 @@ function registerRoutes(appExpress, routes) {
         if (route.routeMiddleware && route.routeMiddleware.length) {
             const m = appExpress[route.httpMethod], args = [route.route];
             args.push.apply(args, route.routeMiddleware);
-            args.push(createHandler(route.userHandler, route.thisArg));
+            args.push(createRegularHandler(route.boundUserHandler));
             m.apply(m, args);
         }
         else {
-            appExpress[route.httpMethod](route.route, createHandler(route.userHandler, route.thisArg));
+            appExpress[route.httpMethod](route.route, createRegularHandler(route.boundUserHandler));
         }
     }
 }
@@ -241,16 +302,25 @@ function notFoundHandler(req, res, next) {
     });
 }
 /** @internal */
-function errorHandler(err, req, res, next) {
+function errorHandlerWithCustomHtmlError(err, req, res, next) {
     err.status = (parseInt(err.status) || 500);
     res.status(err.status);
-    if (req.path.indexOf("/api/") >= 0 || req.accepts("json") || !viewErrorHandler)
+    if (req.path.indexOf("/api/") >= 0 || (req.headers.accept && req.headers.accept.indexOf("application/json") >= 0))
         res.json(err.message || (err.status === 404 ? "Not found" : "Internal error"));
     else
-        viewErrorHandler(err, req, res, next);
+        htmlErrorHandler(err, req, res, next);
 }
 /** @internal */
-let viewErrorHandler = null;
+function errorHandlerWithoutCustomHtmlError(err, req, res, next) {
+    err.status = (parseInt(err.status) || 500);
+    res.status(err.status);
+    if (req.path.indexOf("/api/") >= 0 || (req.headers.accept && req.headers.accept.indexOf("application/json") >= 0))
+        res.json(err.message || (err.status === 404 ? "Not found" : "Internal error"));
+    else
+        res.contentType("text/plain").send(err.message || (err.status === 404 ? "Not found" : "Internal error"));
+}
+/** @internal */
+let htmlErrorHandler = null;
 const app = {
     // Route Decorators
     /**
@@ -686,13 +756,13 @@ const app = {
     /**
      * The actual Express.js app.
      */
-    express: null,
+    express: express(),
     /**
      * Provides basic `Promise` wrappers around common file system operations, with relatives paths using `app.dir.project` as the base directory.
      *
      * Refer to https://nodejs.org/docs/latest-v14.x/api/fs.html for more information.
      */
-    fileSystem: fileSystem_1.FileSystem,
+    fileSystem: FS,
     /**
      * Provides basic methods to send and receive JSON objects from remote servers.
      */
@@ -705,30 +775,18 @@ const app = {
     sql: null,
     // Methods
     /**
-     * Creates, configures and starts the Express.js app.
+     * Creates, configures and starts listening the Express.js app.
      *
-     * This is operation is asynchronous and errors must be handled like errors from regular promises:
-     *
-     * ```ts
-     * app.run(...).catch((reason) => {
-     *     // Handle errors here
-     * });
-     * ```
-     *
-     * The following construct can be used just to display any possible errors without further handling them:
-     *
-     * ```ts
-     * app.run(...).catch(console.error);
-     * ```
+     * For more advanced scenarios, such as using WebSockets, it is advisable to set `config.setupOnly = true`, which makes `run()` not to call `expressApp.listen()` at the end of the setup process.
      * @param config Optional settings used to configure the routes, paths and so on.
      */
-    run: async function (config) {
+    run: function (config) {
         if (!config)
             config = {};
         if (config.allMethodsRoutesAllByDefault && config.allMethodsRoutesHiddenByDefault)
             throw new Error("Both config.allMethodsRoutesAllByDefault and config.allMethodsRoutesHiddenByDefault are set to true");
         app.dir.initial = process.cwd();
-        const appExpress = express(), projectDir = (config.projectDir || app.dir.initial), 
+        const appExpress = app.express, projectDir = (config.projectDir || app.dir.initial), 
         // Using require.main.path does not work on some cloud providers, because
         // they perform additional requires of their own before actually executing
         // the app's main file (like app.js, server.js or index.js).
@@ -737,7 +795,6 @@ const app = {
             if (!routesDir[i] || !fs.existsSync(routesDir[i]))
                 routesDir.splice(i, 1);
         }
-        app.express = appExpress;
         app.root = ((!config.root || config.root === "/") ? "" : (config.root.endsWith("/") ? config.root.substr(0, config.root.length - 1) : config.root));
         if (app.root && !app.root.startsWith("/"))
             app.root = "/" + app.root;
@@ -748,7 +805,7 @@ const app = {
         app.dir.staticFiles = staticFilesDir;
         app.dir.views = viewsDir;
         app.dir.routes = routesDir;
-        fileSystem_1.FileSystem.rootDir = projectDir;
+        FS.rootDir = projectDir;
         appExpress.locals.root = app.root;
         appExpress.disable("x-powered-by");
         appExpress.disable("etag");
@@ -767,7 +824,7 @@ const app = {
         if (!config.disableCompression)
             appExpress.use(require("compression")());
         if (config.preInitCallback)
-            await config.preInitCallback();
+            config.preInitCallback();
         if (staticFilesDir)
             appExpress.use(express.static(staticFilesDir, config.staticFilesConfig || {
                 cacheControl: true,
@@ -794,7 +851,7 @@ const app = {
         if (!config.disableNoCacheHeader)
             appExpress.use(removeCacheHeader);
         if (config.preRouteCallback)
-            await config.preRouteCallback();
+            config.preRouteCallback();
         if (config.logRoutesToConsole)
             console.log("HTTP Method - Full Route - File");
         if (routesDir.length) {
@@ -837,27 +894,22 @@ const app = {
             console.log("No routes found!");
         }
         if (config.postRouteCallback)
-            await config.postRouteCallback();
+            config.postRouteCallback();
         appExpress.use(notFoundHandler);
         if (config.errorHandler) {
             if (config.errorHandler.length !== 4)
                 throw new Error("config.errorHandler must have 4 parameters");
-            appExpress.use(config.errorHandler);
+            appExpress.use(createErrorHandler(config.errorHandler));
         }
-        else {
-            if (config.htmlErrorHandler) {
-                if (config.htmlErrorHandler.length !== 4)
-                    throw new Error("config.htmlErrorHandler must have 4 parameters");
-                viewErrorHandler = config.htmlErrorHandler;
-            }
-            appExpress.use(errorHandler);
+        else if (config.htmlErrorHandler) {
+            if (config.htmlErrorHandler.length !== 4)
+                throw new Error("config.htmlErrorHandler must have 4 parameters");
+            htmlErrorHandler = createErrorHandler(config.htmlErrorHandler);
+            appExpress.use(errorHandlerWithCustomHtmlError);
         }
-        if (config.listenHandler)
-            await config.listenHandler();
-        else
-            return new Promise((resolve, reject) => {
-                appExpress.listen(app.port, app.localIp, resolve);
-            });
+        appExpress.use(errorHandlerWithoutCustomHtmlError);
+        if (!config.setupOnly)
+            appExpress.listen(app.port, app.localIp, config.listenCallback);
     }
 };
 module.exports = app;
