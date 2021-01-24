@@ -5,8 +5,8 @@ const http = require("http");
 const https = require("https");
 const url_1 = require("url");
 class JSONRequest {
-    static async send(method, url, jsonBody, headers) {
-        return new Promise((resolve, reject) => {
+    static async send(method, url, jsonBody, body, bodyContentType, headers) {
+        return new Promise(function (resolve, reject) {
             try {
                 const u = new url_1.URL(url), options = {
                     host: u.hostname || u.host,
@@ -17,6 +17,8 @@ class JSONRequest {
                 };
                 if (jsonBody)
                     options.headers["Content-Type"] = "application/json";
+                else if (body)
+                    options.headers["Content-Type"] = (bodyContentType || "application/octet-stream");
                 if (headers) {
                     for (let h in headers)
                         options.headers[h] = headers[h];
@@ -25,12 +27,7 @@ class JSONRequest {
                     let json = "";
                     response.setEncoding("utf8");
                     response.on("error", function (err) {
-                        resolve({
-                            success: false,
-                            statusCode: 0,
-                            result: null,
-                            errorMessage: err ? err.toString() : "Unknown error"
-                        });
+                        reject(err || new Error("Unknown error"));
                     });
                     response.on("data", function (chunk) {
                         json += chunk;
@@ -39,41 +36,89 @@ class JSONRequest {
                         try {
                             resolve({
                                 success: (response.statusCode >= 200 && response.statusCode <= 299),
+                                parseSuccess: true,
                                 statusCode: response.statusCode,
-                                result: (json ? JSON.parse(json) : null),
-                                errorMessage: null
+                                result: (json ? JSON.parse(json) : null)
                             });
                         }
-                        catch (ex) {
+                        catch (e) {
                             resolve({
                                 success: false,
+                                parseSuccess: false,
                                 statusCode: response.statusCode,
-                                result: json,
-                                errorMessage: ex.message || ex.toString()
+                                result: json
                             });
                         }
                     });
                 });
+                httpreq.on("error", function (err) {
+                    reject(err || new Error("Unknown error"));
+                });
                 if (jsonBody)
-                    httpreq.write(jsonBody);
-                httpreq.end();
+                    httpreq.end(jsonBody, "utf8");
+                else if (body)
+                    httpreq.end(body);
+                else
+                    httpreq.end();
             }
-            catch (ex) {
-                reject(ex.message || ex.toString());
+            catch (e) {
+                reject(e);
             }
         });
     }
-    static async get(url, headers) {
-        return JSONRequest.send("GET", url, null, headers);
-    }
     static async delete(url, headers) {
-        return JSONRequest.send("DELETE", url, null, headers);
+        return JSONRequest.send("DELETE", url, null, null, null, headers);
+    }
+    static async deleteBody(url, jsonBody, headers) {
+        if (!jsonBody && jsonBody !== "")
+            throw new Error("Invalid jsonBody");
+        return JSONRequest.send("DELETE", url, jsonBody, null, null, headers);
+    }
+    static async deleteBuffer(url, body, contentType, headers) {
+        if (!body)
+            throw new Error("Invalid body");
+        if (!contentType)
+            throw new Error("Invalid contentType");
+        return JSONRequest.send("DELETE", url, null, body, contentType, headers);
+    }
+    static async get(url, headers) {
+        return JSONRequest.send("GET", url, null, null, null, headers);
+    }
+    static async patch(url, jsonBody, headers) {
+        if (!jsonBody && jsonBody !== "")
+            throw new Error("Invalid jsonBody");
+        return JSONRequest.send("PATCH", url, jsonBody, null, null, headers);
+    }
+    static async patchBuffer(url, body, contentType, headers) {
+        if (!body)
+            throw new Error("Invalid body");
+        if (!contentType)
+            throw new Error("Invalid contentType");
+        return JSONRequest.send("PATCH", url, null, body, contentType, headers);
     }
     static async post(url, jsonBody, headers) {
-        return JSONRequest.send("POST", url, jsonBody, headers);
+        if (!jsonBody && jsonBody !== "")
+            throw new Error("Invalid jsonBody");
+        return JSONRequest.send("POST", url, jsonBody, null, null, headers);
+    }
+    static async postBuffer(url, body, contentType, headers) {
+        if (!body)
+            throw new Error("Invalid body");
+        if (!contentType)
+            throw new Error("Invalid contentType");
+        return JSONRequest.send("POST", url, null, body, contentType, headers);
     }
     static async put(url, jsonBody, headers) {
-        return JSONRequest.send("PUT", url, jsonBody, headers);
+        if (!jsonBody && jsonBody !== "")
+            throw new Error("Invalid jsonBody");
+        return JSONRequest.send("PUT", url, jsonBody, null, null, headers);
+    }
+    static async putBuffer(url, body, contentType, headers) {
+        if (!body)
+            throw new Error("Invalid body");
+        if (!contentType)
+            throw new Error("Invalid contentType");
+        return JSONRequest.send("PUT", url, null, body, contentType, headers);
     }
 }
 exports.JSONRequest = JSONRequest;

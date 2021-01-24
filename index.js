@@ -2,7 +2,7 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const FS = require("./fileSystem");
+const fileSystem_1 = require("./fileSystem");
 const json_1 = require("./json");
 /** @internal */
 function httpGeneric(method) {
@@ -36,17 +36,20 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
             continue;
         const f = obj[n];
         if (f && (typeof f) === "function") {
-            let fullMethodRoute = f["routeFullMethodRoute"], routeMethodName = f["routeMethodName"], httpMethods = f["httpMethods"];
-            const httpHidden = f["httpHidden"], routeMiddleware = f["routeMiddleware"];
+            let fullMethodRoute = f["routeFullMethodRoute"], routeMethodName = f["routeMethodName"], routeMiddleware = f["routeMiddleware"], routeMiddlewareWithBody = null, httpMethods = f["httpMethods"];
+            const httpHidden = f["httpHidden"], routeFileUpload = parseInt(f["routeFileUpload"]);
             delete f["routeFullMethodRoute"];
             delete f["routeMethodName"];
+            delete f["routeMiddleware"];
             delete f["httpMethods"];
             delete f["httpHidden"];
-            delete f["routeMiddleware"];
+            delete f["routeFileUpload"];
             if (httpHidden || (config.allMethodsRoutesHiddenByDefault && (!httpMethods || !httpMethods.length)))
                 continue;
             if (f.length > 3)
                 throw new Error(`Function "${f.name}", in file ${absolutePath}, should have 3 parameters at most`);
+            if (routeFileUpload && config.disableFileUpload)
+                throw new Error(`config.disableFileUpload is true and app.route.fileUpload() is being used on function "${f.name}", in file ${absolutePath}`);
             if (fullMethodRoute) {
                 if (!fullMethodRoute.startsWith("/"))
                     fullMethodRoute = "/" + fullMethodRoute;
@@ -65,49 +68,74 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
             }
             if (fullMethodRoute.length > 1 && fullMethodRoute.endsWith("/"))
                 fullMethodRoute = fullMethodRoute.substr(0, fullMethodRoute.length - 1);
-            if (!httpMethods || !httpMethods.length) {
+            if (!httpMethods || !httpMethods.length)
+                httpMethods = [config.allMethodsRoutesAllByDefault ? "all" : "get"];
+            else if (httpMethods.length > 1)
+                httpMethods.sort();
+            let all = false, canHandleBody = false;
+            for (let m = httpMethods.length - 1; m >= 0; m--) {
+                if (m > 0 && httpMethods[m] === httpMethods[m - 1]) {
+                    httpMethods.splice(m, 1);
+                }
+                else if (!validHttpMethods[httpMethods[m]]) {
+                    throw new Error(`Invalid http method "${httpMethods[m]}" used for the class method "${n}" in file ${absolutePath}`);
+                }
+                else {
+                    switch (httpMethods[m]) {
+                        case "all":
+                            all = true;
+                        case "delete":
+                        case "patch":
+                        case "post":
+                        case "put":
+                            canHandleBody = true;
+                            break;
+                    }
+                }
+            }
+            if (canHandleBody) {
+                if (routeFileUpload)
+                    routeMiddlewareWithBody = [createFileUploadMiddleware(routeFileUpload)];
+                else if (!config.disableBodyParser)
+                    routeMiddlewareWithBody = [jsonBodyParserMiddleware, urlencodedBodyParserMiddleware];
+                if (routeMiddleware && routeMiddleware.length) {
+                    if (!routeMiddlewareWithBody)
+                        routeMiddlewareWithBody = routeMiddleware;
+                    else
+                        routeMiddlewareWithBody.push.apply(routeMiddlewareWithBody, routeMiddleware);
+                }
+            }
+            else if (routeFileUpload) {
+                throw new Error(`app.route.fileUpload() is being used on function "${f.name}", in file ${absolutePath}, without at least one of the required app.http decorators: all, delete, patch, post or put`);
+            }
+            if (all) {
                 routes.push({
                     absolutePath,
                     route: fullMethodRoute,
-                    httpMethod: (config.allMethodsRoutesAllByDefault ? "all" : "get"),
-                    routeMiddleware,
+                    httpMethod: "all",
+                    routeMiddleware: routeMiddlewareWithBody,
                     boundUserHandler: f.bind(thisArg)
                 });
             }
             else {
-                httpMethods.sort();
-                let all = false;
-                for (let m = httpMethods.length - 1; m > 0; m--) {
-                    if (httpMethods[m] === httpMethods[m - 1])
-                        httpMethods.splice(m, 1);
-                    else if (!validHttpMethods[httpMethods[m]])
-                        throw new Error(`Invalid http method "${httpMethods[m]}" used for the class method "${n}" in file ${absolutePath}`);
-                    else if (httpMethods[m] === "all")
-                        all = true;
-                }
-                if (!validHttpMethods[httpMethods[0]])
-                    throw new Error(`Invalid http method "${httpMethods[0]}" used for the class method "${n}" in file ${absolutePath}`);
-                else if (httpMethods[0] === "all")
-                    all = true;
-                if (all) {
+                const boundUserHandler = f.bind(thisArg);
+                for (let m = httpMethods.length - 1; m >= 0; m--) {
+                    canHandleBody = false;
+                    switch (httpMethods[m]) {
+                        case "delete":
+                        case "patch":
+                        case "post":
+                        case "put":
+                            canHandleBody = true;
+                            break;
+                    }
                     routes.push({
                         absolutePath,
                         route: fullMethodRoute,
-                        httpMethod: "all",
-                        routeMiddleware,
-                        boundUserHandler: f.bind(thisArg)
+                        httpMethod: httpMethods[m],
+                        routeMiddleware: (canHandleBody ? routeMiddlewareWithBody : routeMiddleware),
+                        boundUserHandler
                     });
-                }
-                else {
-                    const boundUserHandler = f.bind(thisArg);
-                    for (let m = httpMethods.length - 1; m >= 0; m--)
-                        routes.push({
-                            absolutePath,
-                            route: fullMethodRoute,
-                            httpMethod: httpMethods[m],
-                            routeMiddleware,
-                            boundUserHandler
-                        });
                 }
             }
         }
@@ -261,6 +289,7 @@ function createRegularHandler(boundUserHandler) {
             Promise.resolve(r).catch(next);
     };
 }
+/** @internal */
 function createErrorHandler(boundUserHandler) {
     // Express.js checks the handler's length to determine if it is a regular handler,
     // or an error handler. For a handler to be considered an error handler, it
@@ -272,6 +301,60 @@ function createErrorHandler(boundUserHandler) {
     };
 }
 /** @internal */
+function createFileUploadMiddleware(limitFileSize) {
+    if (!cachedFileUploadMiddlewares)
+        cachedFileUploadMiddlewares = {};
+    if (!limitFileSize || limitFileSize <= 0)
+        limitFileSize = 10485760;
+    const limitFileSizeStr = limitFileSize.toString();
+    let middleware = cachedFileUploadMiddlewares[limitFileSizeStr];
+    if (!middleware) {
+        const multerMiddleware = app.multer({
+            limits: {
+                fieldNameSize: 256,
+                fileSize: limitFileSize
+            },
+            storage: app.multer.memoryStorage()
+        }).any();
+        middleware = function (req, res, next) {
+            multerMiddleware(req, res, (err) => {
+                const uploadedFiles = {}, uploadedFilesArray = (req["files"] || []);
+                req.uploadedFiles = uploadedFiles;
+                req.uploadedFilesArray = uploadedFilesArray;
+                for (let i = uploadedFilesArray.length - 1; i >= 0; i--) {
+                    const uploadedFile = uploadedFilesArray[i];
+                    if (!uploadedFiles[uploadedFile.fieldname])
+                        uploadedFiles[uploadedFile.fieldname] = uploadedFile;
+                }
+                if (err) {
+                    if (err instanceof app.multer["MulterError"]) {
+                        const uploadedFile = {
+                            buffer: null,
+                            encoding: null,
+                            fieldname: (err.field || ""),
+                            mimetype: null,
+                            originalname: null,
+                            size: 0,
+                            errorcode: (err.code || "UNKNOWN_ERROR"),
+                            errormessage: (err.message || "Unknown error")
+                        };
+                        if (!uploadedFiles[uploadedFile.fieldname])
+                            uploadedFiles[uploadedFile.fieldname] = uploadedFile;
+                        uploadedFilesArray.push(uploadedFile);
+                    }
+                    else {
+                        next(err);
+                        return;
+                    }
+                }
+                next();
+            });
+        };
+        cachedFileUploadMiddlewares[limitFileSizeStr] = middleware;
+    }
+    return middleware;
+}
+/** @internal */
 function registerRoutes(appExpress, routes) {
     for (let i = 0; i < routes.length; i++) {
         const route = routes[i];
@@ -279,7 +362,7 @@ function registerRoutes(appExpress, routes) {
             const m = appExpress[route.httpMethod], args = [route.route];
             args.push.apply(args, route.routeMiddleware);
             args.push(createRegularHandler(route.boundUserHandler));
-            m.apply(m, args);
+            m.apply(appExpress, args);
         }
         else {
             appExpress[route.httpMethod](route.route, createRegularHandler(route.boundUserHandler));
@@ -320,7 +403,13 @@ function errorHandlerWithoutCustomHtmlError(err, req, res, next) {
         res.contentType("text/plain").send(err.message || (err.status === 404 ? "Not found" : "Internal error"));
 }
 /** @internal */
-let htmlErrorHandler = null;
+let htmlErrorHandler;
+/** @internal */
+let cachedFileUploadMiddlewares;
+/** @internal */
+let jsonBodyParserMiddleware;
+/** @internal */
+let urlencodedBodyParserMiddleware;
 const app = {
     // Route Decorators
     /**
@@ -488,7 +577,187 @@ const app = {
          * @param routeClassName Name to be used when composing the class' route prefix.
          */
         methodName: function (routeMethodName) { return function (target, propertyKey, descriptor) { (target[propertyKey] || target)["routeMethodName"] = routeMethodName; }; },
-        middleware: function (...middleware) { return function (target, propertyKey, descriptor) { const f = (target[propertyKey] || target); f["routeMiddleware"] = middleware; }; }
+        /**
+         * Specifies one or more middlewares to be used with the method's route.
+         *
+         * For example, to a single middleware:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.route.middleware(myMiddleware())
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         ...
+         *     }
+         * }
+         * ```
+         *
+         * When adding two or more middlewares, they will be executed in the same order they were passed:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.route.middleware(firstMiddleware(), secondMiddleware(), thridMiddleware())
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         ...
+         *     }
+         * }
+         * ```
+         *
+         * The @ character MUST NOT be placed between '' in the actual code.
+         *
+         * Refer to https://expressjs.com/en/guide/using-middleware.html for more information on middlewares.
+         * @param middleware One or more middlewares to be used with the method's route.
+         */
+        middleware: function (...middleware) { return function (target, propertyKey, descriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"])
+            f["routeMiddleware"] = []; if (middleware)
+            f["routeMiddleware"].push.apply(f["routeMiddleware"], middleware); }; },
+        /**
+         * Indicates that files could be uploaded to the server through this route.
+         *
+         * Internally, this is done using the package multer (https://www.npmjs.com/package/multer).
+         *
+         * In order to make this feature work, you must make a request using HTTP method `DELETE`, `PATCH`, `POST` or `PUT`.
+         *
+         * That means at least one of the following decorators must be used:
+         *
+         * - `@app.http.all()`
+         * - `@app.http.delete()`
+         * - `@app.http.patch()`
+         * - `@app.http.post()`
+         * - `@app.http.put()`
+         *
+         * Also, if using a `<form>` element, it must have the attribute `enctype="multipart/form-data"`, like in the example below:
+         *
+         * ```html
+         * <form method="post" action="route/m1" enctype="multipart/form-data" id="myForm">
+         *     <div>
+         *         <label for="name">Name</label>
+         *         <input name="name" type="text" />
+         *     </div>
+         *     <div>
+         *         <label for="address">Address</label>
+         *         <input name="address" type="text" />
+         *     </div>
+         *     <div>
+         *         <label for="avatar">Avatar</label>
+         *         <input name="avatar" type="file" accept="image/*" />
+         *     </div>
+         *     <div>
+         *         <input type="submit" value="Sign Up" />
+         *     </div>
+         * </form>
+         * ```
+         *
+         * Alternatively you can submit the form using JavaScript (pure or through third-party libraries, such as jQuery) like in the example below:
+         *
+         * ```js
+         * var form = document.getElementById("myForm");
+         *
+         * var formData = new FormData(form);
+         *
+         * $.ajax({
+         *     url: "route/m1",
+         *     method: "post",
+         *     data: formData,
+         *     contentType: false,
+         *     processData: false,
+         *     success: function () { ... },
+         *     error: function () { ... }
+         * });
+         * ```
+         *
+         * Refer to https://api.jquery.com/jquery.ajax/ and to https://developer.mozilla.org/en-US/docs/Web/API/FormData for more information on the API's used in the JavaScript example above.
+         *
+         * Then, you can use `req.uploadedFiles` or `req.uploadedFilesArray` to access the uploaded file(s).
+         *
+         * `req.uploadedFiles` is a dictionary from which you can access the uploaded file(s) by the `name` attribute used in the `<input>` element.
+         *
+         * `req.uploadedFilesArray` is an array from which you can access the uploaded file(s) by their numeric index. This is useful if you need to receive more than one file with the same `name` attribute, because in such cases, `req.uploadedFiles` will only hold the first uploaded file with a given `name` attribute.
+         *
+         * The code below is an example of how to access the file uploaded in the HTML above:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.http.post()
+         *     '@'app.route.fileUpload()
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         // Accessing the files by their name
+         *         console.log(req.uploadedFiles.avatar.size);
+         *
+         *         // Iterating through the array
+         *         for (let i = 0; i < req.uploadedFilesArray.length; i++) {
+         *             console.log(req.uploadedFilesArray[i].size);
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * In a real code you should always check for the existence of a file before using it, because it could be `undefined` if the user fails to actually send a file:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.http.post()
+         *     '@'app.route.fileUpload()
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         if (!req.uploadedFiles.avatar) {
+         *             // User did not send the file
+         *         } else {
+         *             // File has been sent
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * If a value is given for the parameter `limitFileSize`, and the user sends a file larger than `limitFileSize`, the properties `errorCode` and `errorMessage` will be set, indicating the presence of an error in the file. Error codes and messages come directly from multer.
+         *
+         * When a value is not provided for `limitFileSize`, 10MiB (10485760 bytes) is used.
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.http.post()
+         *     '@'app.route.fileUpload(500000)
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         if (!req.uploadedFiles.avatar) {
+         *             // User did not send the file
+         *         } else if (req.uploadedFiles.avatar.errorCode) {
+         *             // File has been sent, but its size exceeds 500000 bytes
+         *         } else {
+         *             // File has been sent OK
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * You can access the file's contents directly through its `buffer` or you can save the file in disk:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.http.post()
+         *     '@'app.route.fileUpload(500000)
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         if (!req.uploadedFiles.avatar) {
+         *             // User did not send the file
+         *         } else if (req.uploadedFiles.avatar.errorCode) {
+         *             // File has been sent, but its size exceeds 500000 bytes
+         *         } else {
+         *             app.fileSystem.saveBuffer("avatars/123.jpg", req.uploadedFiles.avatar.buffer);
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * Since all files are stored in memory, depending on the amount of files uploaded to the server during a given period of time and depending on the size of the files, this approach could cause too much pressure on the server's memory. In such cases it is advisable to use multer directly as any other middleware (using `@app.route.middleware`) and configure it in more advanced ways.
+         *
+         * For convenience, multer can be accessed through `app.multer` without the need for requiring it.
+         *
+         * If `config.disableFileUpload` is `true`, though, `app.multer` is `null` and the decorator `@app.route.fileUpload()` cannot be used.
+         *
+         * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
+         *
+         * The @ character MUST NOT be placed between '' in the actual code.
+         * @param middleware One or more middlewares to be used with the method's route.
+         */
+        fileUpload: function (limitFileSize) { return function (target, propertyKey, descriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"])
+            f["routeMiddleware"] = []; f["routeMiddleware"].push(createFileUploadMiddleware(parseInt(limitFileSize))); f["routeFileUpload"] = true; }; }
     },
     /**
      * Decorators used to specify which HTTP methods a class' method accepts.
@@ -762,7 +1031,7 @@ const app = {
      *
      * Refer to https://nodejs.org/docs/latest-v14.x/api/fs.html for more information.
      */
-    fileSystem: FS,
+    fileSystem: fileSystem_1.FileSystem,
     /**
      * Provides basic methods to send and receive JSON objects from remote servers.
      */
@@ -773,6 +1042,14 @@ const app = {
      * If `config.sqlConfig` is not provided, `app.sql` will be `null`.
      */
     sql: null,
+    /**
+     * Convenience for accessing multer package.
+     *
+     * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
+     *
+     * If `config.disableFileUpload` is `true`, `app.multer` will be `null`.
+     */
+    multer: null,
     // Methods
     /**
      * Creates, configures and starts listening the Express.js app.
@@ -805,7 +1082,7 @@ const app = {
         app.dir.staticFiles = staticFilesDir;
         app.dir.views = viewsDir;
         app.dir.routes = routesDir;
-        FS.rootDir = projectDir;
+        fileSystem_1.FileSystem.rootDir = projectDir;
         appExpress.locals.root = app.root;
         appExpress.disable("x-powered-by");
         appExpress.disable("etag");
@@ -833,11 +1110,17 @@ const app = {
             }));
         if (!config.disableCookies)
             appExpress.use(require("cookie-parser")());
-        if (!config.disablePostBodyParser) {
+        if (!config.disableBodyParser) {
             // http://expressjs.com/en/api.html#express.json
             // http://expressjs.com/en/api.html#express.urlencoded
-            appExpress.use(express.json());
-            appExpress.use(express.urlencoded({ extended: true }));
+            // Instead of globally adding these middlewares, let's add them only to routes that can actually handle a body.
+            jsonBodyParserMiddleware = express.json();
+            urlencodedBodyParserMiddleware = express.urlencoded({ extended: true });
+        }
+        if (!config.disableFileUpload) {
+            // https://www.npmjs.com/package/multer
+            // https://github.com/expressjs/multer/blob/master/StorageEngine.md
+            app.multer = require("multer");
         }
         if (viewsDir) {
             const ejs = require("ejs"), LRU = require("lru-cache");
@@ -893,6 +1176,9 @@ const app = {
         else if (config.logRoutesToConsole) {
             console.log("No routes found!");
         }
+        cachedFileUploadMiddlewares = undefined;
+        jsonBodyParserMiddleware = undefined;
+        urlencodedBodyParserMiddleware = undefined;
         if (config.postRouteCallback)
             config.postRouteCallback();
         appExpress.use(notFoundHandler);

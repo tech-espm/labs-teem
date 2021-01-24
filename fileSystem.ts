@@ -1,7 +1,65 @@
 import fs = require("fs");
 import path = require("path");
 
-export = class FileSystem {
+export interface UploadedFile {
+	/**
+	 * Buffer containing the file's bytes.
+	 * 
+	 * If `errorcode` is set, `buffer` will be `null`.
+	 */
+	buffer: Buffer;
+
+	/**
+	 * Encoding used to convert the file into bytes.
+	 * 
+	 * If `errorcode` is set, `encoding` will be `null`.
+	 */
+	encoding: string;
+
+	/**
+	 * The same value present in the `name` attribute of the HTML `<input>` element.
+	 * 
+	 * If `errorcode` is set, `fieldname` will either be `null`, if it was not possible to identify the source of the error, or will be a string containing the `name` attribute of the failing `<input>` field.
+	 */
+	fieldname: string;
+
+	/**
+	 * Mime type of the file.
+	 * 
+	 * If `errorcode` is set, `mimetype` will be `null`.
+	 */
+	mimetype: string;
+
+	/**
+	 * Name of the file originally uploaded by the user, as stored in their computer.
+	 * 
+	 * If `errorcode` is set, `originalname` will be `null`.
+	 */
+	originalname: string;
+
+	/**
+	 * Size of the file in bytes.
+	 * 
+	 * If `errorcode` is set, `size` will be `0`.
+	 */
+	size: number;
+
+	/**
+	 * Error code set when an error occurs during the parsing of the uploaded files.
+	 * 
+	 * `errorcode` is only set when an error occurs.
+	 */
+	errorcode?: string;
+
+	/**
+	 * Message further describing `errorcode`.
+	 * 
+	 * `errormessage` is only set when an error occurs.
+	 */
+	errormessage?: string;
+}
+
+export class FileSystem {
 	public static rootDir: string;
 	private static readonly wrongSlash = ((path.sep === "/") ? /\\/g : /\//g);
 	private static readonly sepCode = path.sep.charCodeAt(0);
@@ -208,12 +266,20 @@ export = class FileSystem {
 		return FileSystem.save(projectRelativePath, text, "w", mode, encoding || "utf8");
 	}
 
+	public static saveUploadedFile(projectRelativePath: string, uploadedFile: UploadedFile, mode?: fs.Mode): Promise<void> {
+		return FileSystem.save(projectRelativePath, uploadedFile.buffer, "w", mode);
+	}
+
 	public static saveBufferToNewFile(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void> {
 		return FileSystem.save(projectRelativePath, buffer, "wx", mode);
 	}
 
 	public static saveTextToNewFile(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void> {
 		return FileSystem.save(projectRelativePath, text, "wx", mode, encoding || "utf8");
+	}
+
+	public static saveUploadedFileToNewFile(projectRelativePath: string, uploadedFile: UploadedFile, mode?: fs.Mode): Promise<void> {
+		return FileSystem.save(projectRelativePath, uploadedFile.buffer, "wx", mode);
 	}
 
 	private static append(projectRelativePath: string, data: string | Buffer, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void> {

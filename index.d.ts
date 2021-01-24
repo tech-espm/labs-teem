@@ -1,12 +1,22 @@
 ﻿/// <reference types="node" />
 import express = require("express");
 import fs = require("fs");
-import { JSONResponse } from "./json";
+import { UploadedFile as UF } from "./fileSystem";
+import { JSONResponse as JSONRes } from "./json";
 import type { PoolConfig } from "mysql";
 import type { ServeStaticOptions } from "serve-static";
 import type { SqlInterface } from "./sql";
 declare namespace app {
+    interface JSONResponse extends JSONRes {
+    }
+    interface UploadedFile extends UF {
+    }
+    interface UploadedFiles {
+        [fieldname: string]: UploadedFile;
+    }
     interface Request extends express.Request {
+        uploadedFiles?: UploadedFiles;
+        uploadedFilesArray?: UploadedFile[];
     }
     interface Response extends express.Response {
     }
@@ -27,18 +37,26 @@ interface FileSystem {
     createNewEmptyFile(projectRelativePath: string, mode?: fs.Mode): Promise<void>;
     saveBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
     saveText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    saveUploadedFile(projectRelativePath: string, uploadedFile: app.UploadedFile, mode?: fs.Mode): Promise<void>;
     saveBufferToNewFile(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
     saveTextToNewFile(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    saveUploadedFileToNewFile(projectRelativePath: string, uploadedFile: app.UploadedFile, mode?: fs.Mode): Promise<void>;
     appendBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
     appendText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
     appendBufferToExistingFile(projectRelativePath: string, buffer: Buffer): Promise<void>;
     appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void>;
 }
 interface JSONRequest {
-    get(url: string, headers?: any): Promise<JSONResponse>;
-    delete(url: string, headers?: any): Promise<JSONResponse>;
-    post(url: string, jsonBody: string, headers?: any): Promise<JSONResponse>;
-    put(url: string, jsonBody: string, headers?: any): Promise<JSONResponse>;
+    delete(url: string, headers?: any): Promise<app.JSONResponse>;
+    deleteBody(url: string, jsonBody: string, headers?: any): Promise<app.JSONResponse>;
+    deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
+    get(url: string, headers?: any): Promise<app.JSONResponse>;
+    patch(url: string, jsonBody: string, headers?: any): Promise<app.JSONResponse>;
+    patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
+    post(url: string, jsonBody: string, headers?: any): Promise<app.JSONResponse>;
+    postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
+    put(url: string, jsonBody: string, headers?: any): Promise<app.JSONResponse>;
+    putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
 }
 interface Sql {
     /**
@@ -94,7 +112,8 @@ interface Config {
     disableViews?: boolean;
     disableRoutes?: boolean;
     disableCookies?: boolean;
-    disablePostBodyParser?: boolean;
+    disableBodyParser?: boolean;
+    disableFileUpload?: boolean;
     disableNoCacheHeader?: boolean;
     projectDir?: string;
     mainModuleDir?: string;
@@ -281,7 +300,184 @@ declare const app: {
          * @param routeClassName Name to be used when composing the class' route prefix.
          */
         methodName: (routeMethodName: string) => MethodDecorator;
+        /**
+         * Specifies one or more middlewares to be used with the method's route.
+         *
+         * For example, to a single middleware:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.route.middleware(myMiddleware())
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         ...
+         *     }
+         * }
+         * ```
+         *
+         * When adding two or more middlewares, they will be executed in the same order they were passed:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.route.middleware(firstMiddleware(), secondMiddleware(), thridMiddleware())
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         ...
+         *     }
+         * }
+         * ```
+         *
+         * The @ character MUST NOT be placed between '' in the actual code.
+         *
+         * Refer to https://expressjs.com/en/guide/using-middleware.html for more information on middlewares.
+         * @param middleware One or more middlewares to be used with the method's route.
+         */
         middleware: (...middleware: any[]) => MethodDecorator;
+        /**
+         * Indicates that files could be uploaded to the server through this route.
+         *
+         * Internally, this is done using the package multer (https://www.npmjs.com/package/multer).
+         *
+         * In order to make this feature work, you must make a request using HTTP method `DELETE`, `PATCH`, `POST` or `PUT`.
+         *
+         * That means at least one of the following decorators must be used:
+         *
+         * - `@app.http.all()`
+         * - `@app.http.delete()`
+         * - `@app.http.patch()`
+         * - `@app.http.post()`
+         * - `@app.http.put()`
+         *
+         * Also, if using a `<form>` element, it must have the attribute `enctype="multipart/form-data"`, like in the example below:
+         *
+         * ```html
+         * <form method="post" action="route/m1" enctype="multipart/form-data" id="myForm">
+         *     <div>
+         *         <label for="name">Name</label>
+         *         <input name="name" type="text" />
+         *     </div>
+         *     <div>
+         *         <label for="address">Address</label>
+         *         <input name="address" type="text" />
+         *     </div>
+         *     <div>
+         *         <label for="avatar">Avatar</label>
+         *         <input name="avatar" type="file" accept="image/*" />
+         *     </div>
+         *     <div>
+         *         <input type="submit" value="Sign Up" />
+         *     </div>
+         * </form>
+         * ```
+         *
+         * Alternatively you can submit the form using JavaScript (pure or through third-party libraries, such as jQuery) like in the example below:
+         *
+         * ```js
+         * var form = document.getElementById("myForm");
+         *
+         * var formData = new FormData(form);
+         *
+         * $.ajax({
+         *     url: "route/m1",
+         *     method: "post",
+         *     data: formData,
+         *     contentType: false,
+         *     processData: false,
+         *     success: function () { ... },
+         *     error: function () { ... }
+         * });
+         * ```
+         *
+         * Refer to https://api.jquery.com/jquery.ajax/ and to https://developer.mozilla.org/en-US/docs/Web/API/FormData for more information on the API's used in the JavaScript example above.
+         *
+         * Then, you can use `req.uploadedFiles` or `req.uploadedFilesArray` to access the uploaded file(s).
+         *
+         * `req.uploadedFiles` is a dictionary from which you can access the uploaded file(s) by the `name` attribute used in the `<input>` element.
+         *
+         * `req.uploadedFilesArray` is an array from which you can access the uploaded file(s) by their numeric index. This is useful if you need to receive more than one file with the same `name` attribute, because in such cases, `req.uploadedFiles` will only hold the first uploaded file with a given `name` attribute.
+         *
+         * The code below is an example of how to access the file uploaded in the HTML above:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.http.post()
+         *     '@'app.route.fileUpload()
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         // Accessing the files by their name
+         *         console.log(req.uploadedFiles.avatar.size);
+         *
+         *         // Iterating through the array
+         *         for (let i = 0; i < req.uploadedFilesArray.length; i++) {
+         *             console.log(req.uploadedFilesArray[i].size);
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * In a real code you should always check for the existence of a file before using it, because it could be `undefined` if the user fails to actually send a file:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.http.post()
+         *     '@'app.route.fileUpload()
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         if (!req.uploadedFiles.avatar) {
+         *             // User did not send the file
+         *         } else {
+         *             // File has been sent
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * If a value is given for the parameter `limitFileSize`, and the user sends a file larger than `limitFileSize`, the properties `errorCode` and `errorMessage` will be set, indicating the presence of an error in the file. Error codes and messages come directly from multer.
+         *
+         * When a value is not provided for `limitFileSize`, 10MiB (10485760 bytes) is used.
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.http.post()
+         *     '@'app.route.fileUpload(500000)
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         if (!req.uploadedFiles.avatar) {
+         *             // User did not send the file
+         *         } else if (req.uploadedFiles.avatar.errorCode) {
+         *             // File has been sent, but its size exceeds 500000 bytes
+         *         } else {
+         *             // File has been sent OK
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * You can access the file's contents directly through its `buffer` or you can save the file in disk:
+         *
+         * ```ts
+         * class Order {
+         *     '@'app.http.post()
+         *     '@'app.route.fileUpload(500000)
+         *     public m1(req: app.Request, res: app.Response): void {
+         *         if (!req.uploadedFiles.avatar) {
+         *             // User did not send the file
+         *         } else if (req.uploadedFiles.avatar.errorCode) {
+         *             // File has been sent, but its size exceeds 500000 bytes
+         *         } else {
+         *             app.fileSystem.saveBuffer("avatars/123.jpg", req.uploadedFiles.avatar.buffer);
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * Since all files are stored in memory, depending on the amount of files uploaded to the server during a given period of time and depending on the size of the files, this approach could cause too much pressure on the server's memory. In such cases it is advisable to use multer directly as any other middleware (using `@app.route.middleware`) and configure it in more advanced ways.
+         *
+         * For convenience, multer can be accessed through `app.multer` without the need for requiring it.
+         *
+         * If `config.disableFileUpload` is `true`, though, `app.multer` is `null` and the decorator `@app.route.fileUpload()` cannot be used.
+         *
+         * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
+         *
+         * The @ character MUST NOT be placed between '' in the actual code.
+         * @param middleware One or more middlewares to be used with the method's route.
+         */
+        fileUpload: (limitFileSize?: number) => MethodDecorator;
     };
     /**
      * Decorators used to specify which HTTP methods a class' method accepts.
@@ -565,6 +761,14 @@ declare const app: {
      * If `config.sqlConfig` is not provided, `app.sql` will be `null`.
      */
     sql: Sql;
+    /**
+     * Convenience for accessing multer package.
+     *
+     * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
+     *
+     * If `config.disableFileUpload` is `true`, `app.multer` will be `null`.
+     */
+    multer: any;
     /**
      * Creates, configures and starts listening the Express.js app.
      *
