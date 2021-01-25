@@ -30,13 +30,13 @@ export interface JSONResponse {
 export declare class JSONRequest {
     private static send;
     static delete(url: string, headers?: any): Promise<JSONResponse>;
-    static deleteBody(url: string, jsonBody: string, headers?: any): Promise<JSONResponse>;
+    static deleteObject(url: string, object: any, headers?: any): Promise<JSONResponse>;
     static deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse>;
     static get(url: string, headers?: any): Promise<JSONResponse>;
-    static patch(url: string, jsonBody: string, headers?: any): Promise<JSONResponse>;
+    static patch(url: string, object: any, headers?: any): Promise<JSONResponse>;
     static patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse>;
-    static post(url: string, jsonBody: string, headers?: any): Promise<JSONResponse>;
+    static post(url: string, object: any, headers?: any): Promise<JSONResponse>;
     static postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse>;
-    static put(url: string, jsonBody: string, headers?: any): Promise<JSONResponse>;
+    static put(url: string, object: any, headers?: any): Promise<JSONResponse>;
     static putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse>;
 }

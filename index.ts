@@ -68,14 +68,14 @@ interface FileSystem {
 // @@@ Doc
 interface JSONRequest {
 	delete(url: string, headers?: any): Promise<app.JSONResponse>;
-	deleteBody(url: string, jsonBody: string, headers?: any): Promise<app.JSONResponse>;
+	deleteObject(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
 	deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
 	get(url: string, headers?: any): Promise<app.JSONResponse>;
-	patch(url: string, jsonBody: string, headers?: any): Promise<app.JSONResponse>;
+	patch(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
 	patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
-	post(url: string, jsonBody: string, headers?: any): Promise<app.JSONResponse>;
+	post(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
 	postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
-	put(url: string, jsonBody: string, headers?: any): Promise<app.JSONResponse>;
+	put(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
 	putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
 }
 
@@ -1199,7 +1199,7 @@ const app = {
 	 * 
 	 * `app.root` is NOT automatically set and its value comes from `config.root`. If a value is not provided in `config.root`, the empty string `""` is used.
 	 * 
-	 * If the value in `app.root` is anything other than the empty string `""`, it is adjusted so that is always starts with a `/` character, and never ends with with a `/` character.
+	 * If the value in `app.root` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
 	 * 
 	 * `app.root` can be used in redirections, such as `res.redirect(app.root + "/new/route")`.
 	 * 

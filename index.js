@@ -942,7 +942,7 @@ const app = {
      *
      * `app.root` is NOT automatically set and its value comes from `config.root`. If a value is not provided in `config.root`, the empty string `""` is used.
      *
-     * If the value in `app.root` is anything other than the empty string `""`, it is adjusted so that is always starts with a `/` character, and never ends with with a `/` character.
+     * If the value in `app.root` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
      *
      * `app.root` can be used in redirections, such as `res.redirect(app.root + "/new/route")`.
      *

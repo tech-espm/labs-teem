@@ -47,10 +47,13 @@ export class JSONRequest {
 						headers: { "Accept": "application/json" }
 					};
 
-				if (jsonBody)
+				if (jsonBody) {
 					options.headers["Content-Type"] = "application/json";
-				else if (body)
+				} else if (body) {
+					if (!body.length)
+						reject(new Error("Invalid buffer length"));
 					options.headers["Content-Type"] = (bodyContentType || "application/octet-stream");
+				}
 
 				if (headers) {
 					for (let h in headers)
@@ -109,11 +112,8 @@ export class JSONRequest {
 		return JSONRequest.send("DELETE", url, null, null, null, headers);
 	}
 
-	public static async deleteBody(url: string, jsonBody: string, headers?: any): Promise<JSONResponse> {
-		if (!jsonBody && jsonBody !== "")
-			throw new Error("Invalid jsonBody");
-
-		return JSONRequest.send("DELETE", url, jsonBody, null, null, headers);
+	public static async deleteObject(url: string, object: any, headers?: any): Promise<JSONResponse> {
+		return JSONRequest.send("DELETE", url, JSON.stringify(object), null, null, headers);
 	}
 
 	public static async deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse> {
@@ -130,11 +130,8 @@ export class JSONRequest {
 		return JSONRequest.send("GET", url, null, null, null, headers);
 	}
 
-	public static async patch(url: string, jsonBody: string, headers?: any): Promise<JSONResponse> {
-		if (!jsonBody && jsonBody !== "")
-			throw new Error("Invalid jsonBody");
-
-		return JSONRequest.send("PATCH", url, jsonBody, null, null, headers);
+	public static async patch(url: string, object: any, headers?: any): Promise<JSONResponse> {
+		return JSONRequest.send("PATCH", url, JSON.stringify(object), null, null, headers);
 	}
 
 	public static async patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse> {
@@ -147,11 +144,8 @@ export class JSONRequest {
 		return JSONRequest.send("PATCH", url, null, body, contentType, headers);
 	}
 
-	public static async post(url: string, jsonBody: string, headers?: any): Promise<JSONResponse> {
-		if (!jsonBody && jsonBody !== "")
-			throw new Error("Invalid jsonBody");
-
-		return JSONRequest.send("POST", url, jsonBody, null, null, headers);
+	public static async post(url: string, object: any, headers?: any): Promise<JSONResponse> {
+		return JSONRequest.send("POST", url, JSON.stringify(object), null, null, headers);
 	}
 
 	public static async postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse> {
@@ -164,11 +158,8 @@ export class JSONRequest {
 		return JSONRequest.send("POST", url, null, body, contentType, headers);
 	}
 
-	public static async put(url: string, jsonBody: string, headers?: any): Promise<JSONResponse> {
-		if (!jsonBody && jsonBody !== "")
-			throw new Error("Invalid jsonBody");
-
-		return JSONRequest.send("PUT", url, jsonBody, null, null, headers);
+	public static async put(url: string, object: any, headers?: any): Promise<JSONResponse> {
+		return JSONRequest.send("PUT", url, JSON.stringify(object), null, null, headers);
 	}
 
 	public static async putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse> {

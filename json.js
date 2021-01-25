@@ -15,10 +15,14 @@ class JSONRequest {
                     method: method,
                     headers: { "Accept": "application/json" }
                 };
-                if (jsonBody)
+                if (jsonBody) {
                     options.headers["Content-Type"] = "application/json";
-                else if (body)
+                }
+                else if (body) {
+                    if (!body.length)
+                        reject(new Error("Invalid buffer length"));
                     options.headers["Content-Type"] = (bodyContentType || "application/octet-stream");
+                }
                 if (headers) {
                     for (let h in headers)
                         options.headers[h] = headers[h];
@@ -69,10 +73,8 @@ class JSONRequest {
     static async delete(url, headers) {
         return JSONRequest.send("DELETE", url, null, null, null, headers);
     }
-    static async deleteBody(url, jsonBody, headers) {
-        if (!jsonBody && jsonBody !== "")
-            throw new Error("Invalid jsonBody");
-        return JSONRequest.send("DELETE", url, jsonBody, null, null, headers);
+    static async deleteObject(url, object, headers) {
+        return JSONRequest.send("DELETE", url, JSON.stringify(object), null, null, headers);
     }
     static async deleteBuffer(url, body, contentType, headers) {
         if (!body)
@@ -84,10 +86,8 @@ class JSONRequest {
     static async get(url, headers) {
         return JSONRequest.send("GET", url, null, null, null, headers);
     }
-    static async patch(url, jsonBody, headers) {
-        if (!jsonBody && jsonBody !== "")
-            throw new Error("Invalid jsonBody");
-        return JSONRequest.send("PATCH", url, jsonBody, null, null, headers);
+    static async patch(url, object, headers) {
+        return JSONRequest.send("PATCH", url, JSON.stringify(object), null, null, headers);
     }
     static async patchBuffer(url, body, contentType, headers) {
         if (!body)
@@ -96,10 +96,8 @@ class JSONRequest {
             throw new Error("Invalid contentType");
         return JSONRequest.send("PATCH", url, null, body, contentType, headers);
     }
-    static async post(url, jsonBody, headers) {
-        if (!jsonBody && jsonBody !== "")
-            throw new Error("Invalid jsonBody");
-        return JSONRequest.send("POST", url, jsonBody, null, null, headers);
+    static async post(url, object, headers) {
+        return JSONRequest.send("POST", url, JSON.stringify(object), null, null, headers);
     }
     static async postBuffer(url, body, contentType, headers) {
         if (!body)
@@ -108,10 +106,8 @@ class JSONRequest {
             throw new Error("Invalid contentType");
         return JSONRequest.send("POST", url, null, body, contentType, headers);
     }
-    static async put(url, jsonBody, headers) {
-        if (!jsonBody && jsonBody !== "")
-            throw new Error("Invalid jsonBody");
-        return JSONRequest.send("PUT", url, jsonBody, null, null, headers);
+    static async put(url, object, headers) {
+        return JSONRequest.send("PUT", url, JSON.stringify(object), null, null, headers);
     }
     static async putBuffer(url, body, contentType, headers) {
         if (!body)
