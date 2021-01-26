@@ -1,4 +1,5 @@
 ﻿import mysql = require("mysql");
+export declare function init(poolConfig: mysql.PoolConfig): void;
 export interface SqlInterface {
     /**
      * How many rows were affected by the last execution of `query()` or `scalar()`.
@@ -44,8 +45,6 @@ export interface SqlInterface {
     rollback(): Promise<void>;
 }
 export declare class Sql implements SqlInterface {
-    private static pool;
-    static init(poolConfig: mysql.PoolConfig): void;
     private connection;
     private pendingTransaction;
     affectedRows: number;

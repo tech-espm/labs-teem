@@ -1,5 +1,15 @@
 import mysql = require("mysql");
 
+let pool: mysql.Pool;
+
+export function init(poolConfig: mysql.PoolConfig): void {
+	if (!poolConfig)
+		throw new Error("Missing poolConfig");
+
+	if (!pool)
+		pool = mysql.createPool(poolConfig);
+}
+
 export interface SqlInterface {
 	/**
 	 * How many rows were affected by the last execution of `query()` or `scalar()`.
@@ -54,16 +64,6 @@ export interface SqlInterface {
 export class Sql implements SqlInterface {
 	// https://www.npmjs.com/package/mysql
 
-	private static pool: mysql.Pool;
-
-	public static init(poolConfig: mysql.PoolConfig): void {
-		if (!poolConfig)
-			throw new Error("Missing poolConfig");
-
-		if (!Sql.pool)
-			Sql.pool = mysql.createPool(poolConfig);
-	}
-
 	private connection: mysql.PoolConnection;
 	private pendingTransaction: boolean;
 	public affectedRows: number;
@@ -71,7 +71,7 @@ export class Sql implements SqlInterface {
 
 	public static async connect<T>(callback: (sql: Sql) => Promise<T>): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
-			Sql.pool.getConnection((error, connection) => {
+			pool.getConnection((error, connection) => {
 				if (error) {
 					reject(error);
 					return;

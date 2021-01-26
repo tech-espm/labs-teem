@@ -1,17 +1,19 @@
 ﻿"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Sql = void 0;
+exports.Sql = exports.init = void 0;
 const mysql = require("mysql");
+let pool;
+function init(poolConfig) {
+    if (!poolConfig)
+        throw new Error("Missing poolConfig");
+    if (!pool)
+        pool = mysql.createPool(poolConfig);
+}
+exports.init = init;
 class Sql {
-    static init(poolConfig) {
-        if (!poolConfig)
-            throw new Error("Missing poolConfig");
-        if (!Sql.pool)
-            Sql.pool = mysql.createPool(poolConfig);
-    }
     static async connect(callback) {
         return new Promise((resolve, reject) => {
-            Sql.pool.getConnection((error, connection) => {
+            pool.getConnection((error, connection) => {
                 if (error) {
                     reject(error);
                     return;

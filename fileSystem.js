@@ -3,22 +3,116 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FileSystem = void 0;
 const fs = require("fs");
 const path = require("path");
-class FileSystem {
-    static fixProjectRelativePath(projectRelativePath) {
-        if (projectRelativePath === "")
-            return projectRelativePath;
-        if (!projectRelativePath)
-            throw new Error("Invalid project relative path: " + projectRelativePath);
-        projectRelativePath = projectRelativePath.replace(FileSystem.wrongSlash, path.sep);
-        if (projectRelativePath.charCodeAt(0) === FileSystem.sepCode)
-            projectRelativePath = projectRelativePath.substr(1);
-        if (projectRelativePath.startsWith(FileSystem.invalidStart) ||
-            projectRelativePath.indexOf(FileSystem.invalidMiddle) >= 0)
-            throw new Error("Invalid project relative path: " + projectRelativePath);
+const wrongSlash = ((path.sep === "/") ? /\\/g : /\//g);
+const sepCode = path.sep.charCodeAt(0);
+const invalidStart = ((path.sep === "/") ? "../" : "..\\");
+const invalidMiddle = ((path.sep === "/") ? "/../" : "\\..\\");
+function fixProjectRelativePath(projectRelativePath) {
+    if (projectRelativePath === "")
         return projectRelativePath;
-    }
+    if (!projectRelativePath)
+        throw new Error("Invalid project relative path: " + projectRelativePath);
+    projectRelativePath = projectRelativePath.replace(wrongSlash, path.sep);
+    if (projectRelativePath.charCodeAt(0) === sepCode)
+        projectRelativePath = projectRelativePath.substr(1);
+    if (projectRelativePath.startsWith(invalidStart) ||
+        projectRelativePath.indexOf(invalidMiddle) >= 0)
+        throw new Error("Invalid project relative path: " + projectRelativePath);
+    return projectRelativePath;
+}
+function save(projectRelativePath, data, flag, mode, encoding) {
+    return new Promise((resolve, reject) => {
+        try {
+            const options = {
+                flag: flag
+            };
+            if (mode !== undefined)
+                options.mode = mode;
+            if (encoding !== undefined)
+                options.encoding = encoding;
+            fs.writeFile(FileSystem.absolutePath(projectRelativePath), data, options, (err) => {
+                if (err)
+                    reject(err);
+                else
+                    resolve();
+            });
+        }
+        catch (e) {
+            reject(e);
+        }
+    });
+}
+function append(projectRelativePath, data, mode, encoding) {
+    return new Promise((resolve, reject) => {
+        try {
+            const options = {
+                flag: "a"
+            };
+            if (mode !== undefined)
+                options.mode = mode;
+            if (encoding !== undefined)
+                options.encoding = encoding;
+            fs.appendFile(FileSystem.absolutePath(projectRelativePath), data, options, (err) => {
+                if (err)
+                    reject(err);
+                else
+                    resolve();
+            });
+        }
+        catch (e) {
+            reject(e);
+        }
+    });
+}
+function appendToExistingFile(projectRelativePath, data, encoding) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Unfortunately, using fs.appendFile() with "r+" has the same effect as fs.writeFile()...
+            fs.open(fixProjectRelativePath(projectRelativePath), "r+", (err, fd) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                function cleanup(err) {
+                    if (fd) {
+                        try {
+                            fs.close(fd, (closeErr) => {
+                                if (err)
+                                    reject(err);
+                                else if (closeErr)
+                                    reject(closeErr);
+                                else
+                                    resolve();
+                            });
+                        }
+                        catch (e) {
+                            reject(e);
+                        }
+                    }
+                    else {
+                        reject(err || new Error("Unknown error"));
+                    }
+                }
+                fs.fstat(fd, (err, stats) => {
+                    if (err) {
+                        cleanup(err);
+                        return;
+                    }
+                    if (encoding)
+                        fs.write(fd, data, stats.size, encoding, cleanup);
+                    else
+                        fs.write(fd, data, 0, data.length, stats.size, cleanup);
+                });
+            });
+        }
+        catch (e) {
+            reject(e);
+        }
+    });
+}
+class FileSystem {
     static absolutePath(projectRelativePath) {
-        return path.join(FileSystem.rootDir, FileSystem.fixProjectRelativePath(projectRelativePath));
+        return path.join(FileSystem.rootDir, fixProjectRelativePath(projectRelativePath));
     }
     static validateUploadedFilename(filename) {
         // The rules here are basicaly a mix between safety, cross-OS compatibility, actual rules...
@@ -160,129 +254,35 @@ class FileSystem {
             }
         });
     }
-    static save(projectRelativePath, data, flag, mode, encoding) {
-        return new Promise((resolve, reject) => {
-            try {
-                const options = {
-                    flag: flag
-                };
-                if (mode !== undefined)
-                    options.mode = mode;
-                if (encoding !== undefined)
-                    options.encoding = encoding;
-                fs.writeFile(FileSystem.absolutePath(projectRelativePath), data, options, (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
-    }
     static saveBuffer(projectRelativePath, buffer, mode) {
-        return FileSystem.save(projectRelativePath, buffer, "w", mode);
+        return save(projectRelativePath, buffer, "w", mode);
     }
     static saveText(projectRelativePath, text, mode, encoding) {
-        return FileSystem.save(projectRelativePath, text, "w", mode, encoding || "utf8");
+        return save(projectRelativePath, text, "w", mode, encoding || "utf8");
     }
     static saveUploadedFile(projectRelativePath, uploadedFile, mode) {
-        return FileSystem.save(projectRelativePath, uploadedFile.buffer, "w", mode);
+        return save(projectRelativePath, uploadedFile.buffer, "w", mode);
     }
     static saveBufferToNewFile(projectRelativePath, buffer, mode) {
-        return FileSystem.save(projectRelativePath, buffer, "wx", mode);
+        return save(projectRelativePath, buffer, "wx", mode);
     }
     static saveTextToNewFile(projectRelativePath, text, mode, encoding) {
-        return FileSystem.save(projectRelativePath, text, "wx", mode, encoding || "utf8");
+        return save(projectRelativePath, text, "wx", mode, encoding || "utf8");
     }
     static saveUploadedFileToNewFile(projectRelativePath, uploadedFile, mode) {
-        return FileSystem.save(projectRelativePath, uploadedFile.buffer, "wx", mode);
-    }
-    static append(projectRelativePath, data, mode, encoding) {
-        return new Promise((resolve, reject) => {
-            try {
-                const options = {
-                    flag: "a"
-                };
-                if (mode !== undefined)
-                    options.mode = mode;
-                if (encoding !== undefined)
-                    options.encoding = encoding;
-                fs.appendFile(FileSystem.absolutePath(projectRelativePath), data, options, (err) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve();
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
+        return save(projectRelativePath, uploadedFile.buffer, "wx", mode);
     }
     static appendBuffer(projectRelativePath, buffer, mode) {
-        return FileSystem.append(projectRelativePath, buffer, mode);
+        return append(projectRelativePath, buffer, mode);
     }
     static appendText(projectRelativePath, text, mode, encoding) {
-        return FileSystem.append(projectRelativePath, text, mode, encoding || "utf8");
-    }
-    static appendToExistingFile(projectRelativePath, data, encoding) {
-        return new Promise((resolve, reject) => {
-            try {
-                // Unfortunately, using fs.appendFile() with "r+" has the same effect as fs.writeFile()...
-                fs.open(FileSystem.fixProjectRelativePath(projectRelativePath), "r+", (err, fd) => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    function cleanup(err) {
-                        if (fd) {
-                            try {
-                                fs.close(fd, (closeErr) => {
-                                    if (err)
-                                        reject(err);
-                                    else if (closeErr)
-                                        reject(closeErr);
-                                    else
-                                        resolve();
-                                });
-                            }
-                            catch (e) {
-                                reject(e);
-                            }
-                        }
-                        else {
-                            reject(err || new Error("Unknown error"));
-                        }
-                    }
-                    fs.fstat(fd, (err, stats) => {
-                        if (err) {
-                            cleanup(err);
-                            return;
-                        }
-                        if (encoding)
-                            fs.write(fd, data, stats.size, encoding, cleanup);
-                        else
-                            fs.write(fd, data, 0, data.length, stats.size, cleanup);
-                    });
-                });
-            }
-            catch (e) {
-                reject(e);
-            }
-        });
+        return append(projectRelativePath, text, mode, encoding || "utf8");
     }
     static appendBufferToExistingFile(projectRelativePath, buffer) {
-        return FileSystem.appendToExistingFile(projectRelativePath, buffer);
+        return appendToExistingFile(projectRelativePath, buffer);
     }
     static appendTextToExistingFile(projectRelativePath, text, encoding) {
-        return FileSystem.appendToExistingFile(projectRelativePath, text, encoding || "utf8");
+        return appendToExistingFile(projectRelativePath, text, encoding || "utf8");
     }
 }
 exports.FileSystem = FileSystem;
-FileSystem.wrongSlash = ((path.sep === "/") ? /\\/g : /\//g);
-FileSystem.sepCode = path.sep.charCodeAt(0);
-FileSystem.invalidStart = ((path.sep === "/") ? "../" : "..\\");
-FileSystem.invalidMiddle = ((path.sep === "/") ? "/../" : "\\..\\");

@@ -52,11 +52,6 @@ export interface UploadedFile {
 }
 export declare class FileSystem {
     static rootDir: string;
-    private static readonly wrongSlash;
-    private static readonly sepCode;
-    private static readonly invalidStart;
-    private static readonly invalidMiddle;
-    private static fixProjectRelativePath;
     static absolutePath(projectRelativePath: string): string;
     static validateUploadedFilename(filename: string): string;
     static createDirectory(projectRelativePath: string, options?: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
@@ -66,17 +61,14 @@ export declare class FileSystem {
     static deleteFile(projectRelativePath: string): Promise<void>;
     static fileExists(projectRelativePath: string): Promise<boolean>;
     static createNewEmptyFile(projectRelativePath: string, mode?: fs.Mode): Promise<void>;
-    private static save;
     static saveBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
     static saveText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
     static saveUploadedFile(projectRelativePath: string, uploadedFile: UploadedFile, mode?: fs.Mode): Promise<void>;
     static saveBufferToNewFile(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
     static saveTextToNewFile(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
     static saveUploadedFileToNewFile(projectRelativePath: string, uploadedFile: UploadedFile, mode?: fs.Mode): Promise<void>;
-    private static append;
     static appendBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
     static appendText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
-    private static appendToExistingFile;
     static appendBufferToExistingFile(projectRelativePath: string, buffer: Buffer): Promise<void>;
     static appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void>;
 }

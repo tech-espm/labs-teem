@@ -3,7 +3,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const fileSystem_1 = require("./fileSystem");
-const json_1 = require("./json");
+const request_1 = require("./request");
 /** @internal */
 function httpGeneric(method) {
     return function (target, propertyKey, descriptor) {
@@ -1033,9 +1033,22 @@ const app = {
      */
     fileSystem: fileSystem_1.FileSystem,
     /**
-     * Provides basic methods to send and receive JSON objects from remote servers.
+     * Provides basic methods to send and receive data from remote servers.
      */
-    jsonRequest: json_1.JSONRequest,
+    request: {
+        /**
+         * Provides basic methods to send data and receive JSON objects from remote servers.
+         */
+        json: request_1.JSONRequest,
+        /**
+         * Provides basic methods to send data and receive strings from remote servers.
+         */
+        string: request_1.StringRequest,
+        /**
+         * Provides basic methods to send data and receive raw buffers from remote servers.
+         */
+        buffer: request_1.BufferRequest
+    },
     /**
      * Provides a way to connect to the database, as specified by `config.sqlConfig`, by calling `app.sql.connect()`.
      *
@@ -1088,9 +1101,9 @@ const app = {
         appExpress.disable("etag");
         if (config.sqlConfig) {
             // Only require our Sql module if it is actually going to be used.
-            const sql = require("./sql").Sql;
+            const sql = require("./sql");
             sql.init(config.sqlConfig);
-            app.sql = sql;
+            app.sql = sql.Sql;
         }
         // Object.freeze causes serious performance issues in property access time!
         //Object.freeze(FS);
@@ -1098,24 +1111,31 @@ const app = {
         //Object.freeze(app.http);
         //Object.freeze(app.dir);
         //Object.freeze(app);
-        if (!config.disableCompression)
-            appExpress.use(require("compression")());
-        if (config.preInitCallback)
-            config.preInitCallback();
+        if (config.initCallback)
+            config.initCallback();
+        // https://expressjs.com/en/advanced/best-practice-performance.html#use-gzip-compression
+        // https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
+        // https://nodejs.org/api/zlib.html#zlib_compressing_http_requests_and_responses
         if (staticFilesDir)
             appExpress.use(express.static(staticFilesDir, config.staticFilesConfig || {
                 cacheControl: true,
                 etag: false,
+                immutable: true,
                 maxAge: "365d"
             }));
         if (!config.disableCookies)
             appExpress.use(require("cookie-parser")());
+        if (config.enableDynamicCompression)
+            appExpress.use(require("compression")());
         if (!config.disableBodyParser) {
             // http://expressjs.com/en/api.html#express.json
             // http://expressjs.com/en/api.html#express.urlencoded
             // Instead of globally adding these middlewares, let's add them only to routes that can actually handle a body.
-            jsonBodyParserMiddleware = express.json();
-            urlencodedBodyParserMiddleware = express.urlencoded({ extended: true });
+            let bodyParserLimit = parseInt(config.bodyParserLimit);
+            if (isNaN(bodyParserLimit) || bodyParserLimit <= 0)
+                bodyParserLimit = 10485760;
+            jsonBodyParserMiddleware = express.json({ limit: bodyParserLimit });
+            urlencodedBodyParserMiddleware = express.urlencoded({ limit: bodyParserLimit, extended: true });
         }
         if (!config.disableFileUpload) {
             // https://www.npmjs.com/package/multer
@@ -1124,7 +1144,10 @@ const app = {
         }
         if (viewsDir) {
             const ejs = require("ejs"), LRU = require("lru-cache");
-            ejs.cache = new LRU(Math.max(200, parseInt(config.viewsCacheSize) | 0));
+            let viewsCacheSize = parseInt(config.viewsCacheSize);
+            if (isNaN(viewsCacheSize) || viewsCacheSize <= 0)
+                viewsCacheSize = 200;
+            ejs.cache = new LRU(viewsCacheSize);
             appExpress.set("views", viewsDir);
             // https://www.npmjs.com/package/ejs#layouts
             // https://www.npmjs.com/package/express-ejs-layouts
@@ -1133,8 +1156,8 @@ const app = {
         }
         if (!config.disableNoCacheHeader)
             appExpress.use(removeCacheHeader);
-        if (config.preRouteCallback)
-            config.preRouteCallback();
+        if (config.beforeRouteCallback)
+            config.beforeRouteCallback();
         if (config.logRoutesToConsole)
             console.log("HTTP Method - Full Route - File");
         if (routesDir.length) {
@@ -1179,8 +1202,8 @@ const app = {
         cachedFileUploadMiddlewares = undefined;
         jsonBodyParserMiddleware = undefined;
         urlencodedBodyParserMiddleware = undefined;
-        if (config.postRouteCallback)
-            config.postRouteCallback();
+        if (config.afterRouteCallback)
+            config.afterRouteCallback();
         appExpress.use(notFoundHandler);
         if (config.errorHandler) {
             if (config.errorHandler.length !== 4)
@@ -1195,7 +1218,7 @@ const app = {
         }
         appExpress.use(errorHandlerWithoutCustomHtmlError);
         if (!config.setupOnly)
-            appExpress.listen(app.port, app.localIp, config.listenCallback);
+            appExpress.listen(app.port, app.localIp);
     }
 };
 module.exports = app;

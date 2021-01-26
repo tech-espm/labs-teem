@@ -2,7 +2,7 @@ import express = require("express");
 import fs = require("fs");
 import path = require("path");
 import { FileSystem as FS, UploadedFile as UF } from "./fileSystem";
-import { JSONResponse as JSONRes, JSONRequest as JSONReq } from "./json";
+import { JSONResponse as JSONRes, JSONRequest as JSONReq, StringResponse as StringRes, StringRequest as StringReq, BufferResponse as BufferRes, BufferRequest as BufferReq } from "./request";
 
 import type { PoolConfig } from "mysql";
 import type { ServeStaticOptions } from "serve-static";
@@ -16,6 +16,12 @@ namespace app {
 	// their routes' methods.
 
 	export interface JSONResponse extends JSONRes {
+	}
+
+	export interface StringResponse extends StringRes {
+	}
+
+	export interface BufferResponse extends BufferRes {
 	}
 
 	export interface UploadedFile extends UF {
@@ -79,6 +85,34 @@ interface JSONRequest {
 	putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
 }
 
+// @@@ Doc
+interface StringRequest {
+	delete(url: string, headers?: any): Promise<app.StringResponse>;
+	deleteObject(url: string, object: any, headers?: any): Promise<app.StringResponse>;
+	deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+	get(url: string, headers?: any): Promise<app.StringResponse>;
+	patch(url: string, object: any, headers?: any): Promise<app.StringResponse>;
+	patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+	post(url: string, object: any, headers?: any): Promise<app.StringResponse>;
+	postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+	put(url: string, object: any, headers?: any): Promise<app.StringResponse>;
+	putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+}
+
+// @@@ Doc
+interface BufferRequest {
+	delete(url: string, headers?: any): Promise<app.BufferResponse>;
+	deleteObject(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
+	deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+	get(url: string, headers?: any): Promise<app.BufferResponse>;
+	patch(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
+	patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+	post(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
+	postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+	put(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
+	putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+}
+
 interface Sql {
     /**
      * Fetches a connection from the internal connection pool and executes the given callback upon success. The actual connection is provided as the first argument to the callback.
@@ -133,7 +167,8 @@ interface Config {
 
 	sqlConfig?: PoolConfig;
 
-	disableCompression?: boolean;
+	enableDynamicCompression?: boolean;
+
 	disableStaticFiles?: boolean;
 	disableViews?: boolean;
 	disableRoutes?: boolean;
@@ -150,15 +185,15 @@ interface Config {
 
 	staticFilesConfig?: ServeStaticOptions;
 	viewsCacheSize?: number;
+	bodyParserLimit?: number;
 	logRoutesToConsole?: boolean;
 	useClassNamesAsRoutes?: boolean;
 	allMethodsRoutesAllByDefault?: boolean;
 	allMethodsRoutesHiddenByDefault?: boolean;
 
-	preInitCallback?: () => void;
-	preRouteCallback?: () => void;
-	postRouteCallback?: () => void;
-	listenCallback?: () => void;
+	initCallback?: () => void;
+	beforeRouteCallback?: () => void;
+	afterRouteCallback?: () => void;
 
 	errorHandler?: ErrorHandler;
 	htmlErrorHandler?: ErrorHandler;
@@ -1301,9 +1336,24 @@ const app = {
 	fileSystem: FS as FileSystem,
 
 	/**
-	 * Provides basic methods to send and receive JSON objects from remote servers.
+	 * Provides basic methods to send and receive data from remote servers.
 	 */
-	jsonRequest: JSONReq as JSONRequest,
+	request: {
+		/**
+		 * Provides basic methods to send data and receive JSON objects from remote servers.
+		 */
+		json: JSONReq as JSONRequest,
+
+		/**
+		 * Provides basic methods to send data and receive strings from remote servers.
+		 */
+		string: StringReq as StringRequest,
+
+		/**
+		 * Provides basic methods to send data and receive raw buffers from remote servers.
+		 */
+		buffer: BufferReq as BufferRequest
+	},
 
 	/**
 	 * Provides a way to connect to the database, as specified by `config.sqlConfig`, by calling `app.sql.connect()`.
@@ -1373,9 +1423,9 @@ const app = {
 
 		if (config.sqlConfig) {
 			// Only require our Sql module if it is actually going to be used.
-			const sql = require("./sql").Sql;
+			const sql = require("./sql");
 			sql.init(config.sqlConfig);
-			app.sql = sql;
+			app.sql = sql.Sql;
 		}
 
 		// Object.freeze causes serious performance issues in property access time!
@@ -1385,28 +1435,35 @@ const app = {
 		//Object.freeze(app.dir);
 		//Object.freeze(app);
 
-		if (!config.disableCompression)
-			appExpress.use(require("compression")());
+		if (config.initCallback)
+			config.initCallback();
 
-		if (config.preInitCallback)
-			config.preInitCallback();
-
+		// https://expressjs.com/en/advanced/best-practice-performance.html#use-gzip-compression
+		// https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
+		// https://nodejs.org/api/zlib.html#zlib_compressing_http_requests_and_responses
 		if (staticFilesDir)
 			appExpress.use(express.static(staticFilesDir, config.staticFilesConfig || {
 				cacheControl: true,
 				etag: false,
+				immutable: true,
 				maxAge: "365d"
 			}));
 
 		if (!config.disableCookies)
 			appExpress.use(require("cookie-parser")());
 
+		if (config.enableDynamicCompression)
+			appExpress.use(require("compression")());
+
 		if (!config.disableBodyParser) {
 			// http://expressjs.com/en/api.html#express.json
 			// http://expressjs.com/en/api.html#express.urlencoded
 			// Instead of globally adding these middlewares, let's add them only to routes that can actually handle a body.
-			jsonBodyParserMiddleware = express.json();
-			urlencodedBodyParserMiddleware = express.urlencoded({ extended: true });
+			let bodyParserLimit = parseInt(config.bodyParserLimit as any);
+			if (isNaN(bodyParserLimit) || bodyParserLimit <= 0)
+				bodyParserLimit = 10485760;
+			jsonBodyParserMiddleware = express.json({ limit: bodyParserLimit });
+			urlencodedBodyParserMiddleware = express.urlencoded({ limit: bodyParserLimit, extended: true });
 		}
 
 		if (!config.disableFileUpload) {
@@ -1418,7 +1475,10 @@ const app = {
 		if (viewsDir) {
 			const ejs = require("ejs"),
 				LRU = require("lru-cache");
-			ejs.cache = new LRU(Math.max(200, parseInt(config.viewsCacheSize as any) | 0));
+			let viewsCacheSize = parseInt(config.viewsCacheSize as any);
+			if (isNaN(viewsCacheSize) || viewsCacheSize <= 0)
+				viewsCacheSize = 200;
+			ejs.cache = new LRU(viewsCacheSize);
 			appExpress.set("views", viewsDir);
 			// https://www.npmjs.com/package/ejs#layouts
 			// https://www.npmjs.com/package/express-ejs-layouts
@@ -1429,8 +1489,8 @@ const app = {
 		if (!config.disableNoCacheHeader)
 			appExpress.use(removeCacheHeader);
 
-		if (config.preRouteCallback)
-			config.preRouteCallback();
+		if (config.beforeRouteCallback)
+			config.beforeRouteCallback();
 
 		if (config.logRoutesToConsole)
 			console.log("HTTP Method - Full Route - File");
@@ -1485,8 +1545,8 @@ const app = {
 		jsonBodyParserMiddleware = undefined;
 		urlencodedBodyParserMiddleware = undefined;
 		
-		if (config.postRouteCallback)
-			config.postRouteCallback();
+		if (config.afterRouteCallback)
+			config.afterRouteCallback();
 
 		appExpress.use(notFoundHandler);
 
@@ -1503,7 +1563,7 @@ const app = {
 		appExpress.use(errorHandlerWithoutCustomHtmlError);
 
 		if (!config.setupOnly)
-			appExpress.listen(app.port, app.localIp, config.listenCallback);
+			appExpress.listen(app.port, app.localIp);
 	}
 };
 

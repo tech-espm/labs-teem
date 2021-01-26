@@ -2,12 +2,16 @@
 import express = require("express");
 import fs = require("fs");
 import { UploadedFile as UF } from "./fileSystem";
-import { JSONResponse as JSONRes } from "./json";
+import { JSONResponse as JSONRes, StringResponse as StringRes, BufferResponse as BufferRes } from "./request";
 import type { PoolConfig } from "mysql";
 import type { ServeStaticOptions } from "serve-static";
 import type { SqlInterface } from "./sql";
 declare namespace app {
     interface JSONResponse extends JSONRes {
+    }
+    interface StringResponse extends StringRes {
+    }
+    interface BufferResponse extends BufferRes {
     }
     interface UploadedFile extends UF {
     }
@@ -58,6 +62,30 @@ interface JSONRequest {
     put(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
     putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
 }
+interface StringRequest {
+    delete(url: string, headers?: any): Promise<app.StringResponse>;
+    deleteObject(url: string, object: any, headers?: any): Promise<app.StringResponse>;
+    deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+    get(url: string, headers?: any): Promise<app.StringResponse>;
+    patch(url: string, object: any, headers?: any): Promise<app.StringResponse>;
+    patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+    post(url: string, object: any, headers?: any): Promise<app.StringResponse>;
+    postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+    put(url: string, object: any, headers?: any): Promise<app.StringResponse>;
+    putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+}
+interface BufferRequest {
+    delete(url: string, headers?: any): Promise<app.BufferResponse>;
+    deleteObject(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
+    deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+    get(url: string, headers?: any): Promise<app.BufferResponse>;
+    patch(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
+    patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+    post(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
+    postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+    put(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
+    putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+}
 interface Sql {
     /**
      * Fetches a connection from the internal connection pool and executes the given callback upon success. The actual connection is provided as the first argument to the callback.
@@ -107,7 +135,7 @@ interface Config {
     localIp?: string;
     port?: number;
     sqlConfig?: PoolConfig;
-    disableCompression?: boolean;
+    enableDynamicCompression?: boolean;
     disableStaticFiles?: boolean;
     disableViews?: boolean;
     disableRoutes?: boolean;
@@ -122,14 +150,14 @@ interface Config {
     routesDir?: string[];
     staticFilesConfig?: ServeStaticOptions;
     viewsCacheSize?: number;
+    bodyParserLimit?: number;
     logRoutesToConsole?: boolean;
     useClassNamesAsRoutes?: boolean;
     allMethodsRoutesAllByDefault?: boolean;
     allMethodsRoutesHiddenByDefault?: boolean;
-    preInitCallback?: () => void;
-    preRouteCallback?: () => void;
-    postRouteCallback?: () => void;
-    listenCallback?: () => void;
+    initCallback?: () => void;
+    beforeRouteCallback?: () => void;
+    afterRouteCallback?: () => void;
     errorHandler?: ErrorHandler;
     htmlErrorHandler?: ErrorHandler;
     setupOnly?: boolean;
@@ -752,9 +780,22 @@ declare const app: {
      */
     fileSystem: FileSystem;
     /**
-     * Provides basic methods to send and receive JSON objects from remote servers.
+     * Provides basic methods to send and receive data from remote servers.
      */
-    jsonRequest: JSONRequest;
+    request: {
+        /**
+         * Provides basic methods to send data and receive JSON objects from remote servers.
+         */
+        json: JSONRequest;
+        /**
+         * Provides basic methods to send data and receive strings from remote servers.
+         */
+        string: StringRequest;
+        /**
+         * Provides basic methods to send data and receive raw buffers from remote servers.
+         */
+        buffer: BufferRequest;
+    };
     /**
      * Provides a way to connect to the database, as specified by `config.sqlConfig`, by calling `app.sql.connect()`.
      *
