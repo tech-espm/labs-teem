@@ -938,7 +938,7 @@ const app = {
      *
      * For example, if the app is the only one hosted by the server, and is located at the root URL, such as `example.com`, `app.root` is an empty string `""`.
      *
-     * If the app is hosted by the server alongside other apps, such as `example.com/app1`, app.root is `"/app1"`.
+     * If the app is hosted by the server alongside other apps, such as `example.com/app1`, `app.root` is `"/app1"`.
      *
      * `app.root` is NOT automatically set and its value comes from `config.root`. If a value is not provided in `config.root`, the empty string `""` is used.
      *
@@ -951,6 +951,21 @@ const app = {
      * `app.root` is NOT used to produce the routes.
      */
     root: null,
+    /**
+     * The static root path is the virtual directory where this app's static files are located. This path is concatenated with `app.root` to produce the actual prefix used to locate the files.
+     *
+     * For example, if `config.staticRoot` is `"/public"` and `config.root` is `"/app1"`, `app.staticRoot` will be `"/app1/public"` and it will be assumed that all public static files are located under the virtual path `/app1/public`.
+     *
+     * Assuming there is an image physically located at `/project dir/public/images/avatar.jpg` and that the project is hosted at `example.com`, if `app.staticRoot` is `"/myPublicFiles"`, the image `avatar.jpg` will be accessible from the URL `http://example.com/myPublicFiles/images/avatar.jpg`.
+     * On the other hand, if `app.staticRoot` is an empty string `""`, the image `avatar.jpg` will be accessible from the URL `http://example.com/images/avatar.jpg`.
+     *
+     * `app.staticRoot` is NOT automatically set and its value comes from `config.root` and `config.staticRoot`. If a value is not provided in `config.staticRoot`, the empty string `""` is used.
+     *
+     * If the value in `app.staticRoot` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
+     *
+     * `app.staticRoot` can be used in EJS files, since `app.staticRoot` is replicated to `app.express.locals.staticRoot`, allowing for constructs like `<img src="<%- staticRoot %>/path/to/image.jpg" />`.
+     */
+    staticRoot: null,
     /**
      * The IP address used when setting up the server.
      *
@@ -1088,6 +1103,11 @@ const app = {
         app.root = ((!config.root || config.root === "/") ? "" : (config.root.endsWith("/") ? config.root.substr(0, config.root.length - 1) : config.root));
         if (app.root && !app.root.startsWith("/"))
             app.root = "/" + app.root;
+        app.staticRoot = ((!config.staticRoot || config.staticRoot === "/") ? "" : (config.staticRoot.endsWith("/") ? config.staticRoot.substr(0, config.staticRoot.length - 1) : config.staticRoot));
+        if (app.staticRoot && !app.staticRoot.startsWith("/"))
+            app.staticRoot = "/" + app.staticRoot;
+        if (app.root)
+            app.staticRoot = app.root + app.staticRoot;
         app.localIp = (("localIp" in config) ? config.localIp : "127.0.0.1");
         app.port = (Math.max(parseInt(config.port) || parseInt(process.env.PORT) || 0, 0) || 3000);
         app.dir.project = projectDir;
@@ -1097,6 +1117,7 @@ const app = {
         app.dir.routes = routesDir;
         fileSystem_1.FileSystem.rootDir = projectDir;
         appExpress.locals.root = app.root;
+        appExpress.locals.staticRoot = app.staticRoot;
         appExpress.disable("x-powered-by");
         appExpress.disable("etag");
         if (config.sqlConfig) {
@@ -1113,16 +1134,23 @@ const app = {
         //Object.freeze(app);
         if (config.initCallback)
             config.initCallback();
+        // Apparently, there are great discussions about using or not compression and about
+        // serving static files directly from Node.js/Express...
         // https://expressjs.com/en/advanced/best-practice-performance.html#use-gzip-compression
         // https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
         // https://nodejs.org/api/zlib.html#zlib_compressing_http_requests_and_responses
-        if (staticFilesDir)
-            appExpress.use(express.static(staticFilesDir, config.staticFilesConfig || {
+        if (staticFilesDir) {
+            const staticOptions = config.staticFilesConfig || {
                 cacheControl: true,
                 etag: false,
                 immutable: true,
                 maxAge: "365d"
-            }));
+            }, staticRootWithoutAppRoot = (app.root ? app.staticRoot.substr(app.root.length) : app.staticRoot);
+            if (staticRootWithoutAppRoot)
+                appExpress.use(staticRootWithoutAppRoot, express.static(staticFilesDir, staticOptions));
+            else
+                appExpress.use(express.static(staticFilesDir, staticOptions));
+        }
         if (!config.disableCookies)
             appExpress.use(require("cookie-parser")());
         if (config.enableDynamicCompression)

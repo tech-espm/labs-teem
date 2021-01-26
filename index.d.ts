@@ -132,6 +132,7 @@ interface ErrorHandler {
 }
 interface Config {
     root?: string;
+    staticRoot?: string;
     localIp?: string;
     port?: number;
     sqlConfig?: PoolConfig;
@@ -685,7 +686,7 @@ declare const app: {
      *
      * For example, if the app is the only one hosted by the server, and is located at the root URL, such as `example.com`, `app.root` is an empty string `""`.
      *
-     * If the app is hosted by the server alongside other apps, such as `example.com/app1`, app.root is `"/app1"`.
+     * If the app is hosted by the server alongside other apps, such as `example.com/app1`, `app.root` is `"/app1"`.
      *
      * `app.root` is NOT automatically set and its value comes from `config.root`. If a value is not provided in `config.root`, the empty string `""` is used.
      *
@@ -698,6 +699,21 @@ declare const app: {
      * `app.root` is NOT used to produce the routes.
      */
     root: string;
+    /**
+     * The static root path is the virtual directory where this app's static files are located. This path is concatenated with `app.root` to produce the actual prefix used to locate the files.
+     *
+     * For example, if `config.staticRoot` is `"/public"` and `config.root` is `"/app1"`, `app.staticRoot` will be `"/app1/public"` and it will be assumed that all public static files are located under the virtual path `/app1/public`.
+     *
+     * Assuming there is an image physically located at `/project dir/public/images/avatar.jpg` and that the project is hosted at `example.com`, if `app.staticRoot` is `"/myPublicFiles"`, the image `avatar.jpg` will be accessible from the URL `http://example.com/myPublicFiles/images/avatar.jpg`.
+     * On the other hand, if `app.staticRoot` is an empty string `""`, the image `avatar.jpg` will be accessible from the URL `http://example.com/images/avatar.jpg`.
+     *
+     * `app.staticRoot` is NOT automatically set and its value comes from `config.root` and `config.staticRoot`. If a value is not provided in `config.staticRoot`, the empty string `""` is used.
+     *
+     * If the value in `app.staticRoot` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
+     *
+     * `app.staticRoot` can be used in EJS files, since `app.staticRoot` is replicated to `app.express.locals.staticRoot`, allowing for constructs like `<img src="<%- staticRoot %>/path/to/image.jpg" />`.
+     */
+    staticRoot: string;
     /**
      * The IP address used when setting up the server.
      *

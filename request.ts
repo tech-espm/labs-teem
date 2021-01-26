@@ -98,6 +98,11 @@ async function send(method: string, url: string, jsonBody: string, body: Buffer,
 						reject(err || new Error("Unknown error"));
 				};
 
+				response.setTimeout(30000, function () {
+					if (cleanUp())
+						reject(new Error("Response timeout"));
+				});
+
 				response.on("error", errorHandler);
 
 				// The listener callback will be passed the chunk of data as a string if a
@@ -214,6 +219,10 @@ async function send(method: string, url: string, jsonBody: string, body: Buffer,
 
 					cleanUp();
 				})
+			});
+
+			httpreq.setTimeout(30000, function () {
+				reject(new Error("Request timeout"));
 			});
 
 			httpreq.on("error", function (err) {
