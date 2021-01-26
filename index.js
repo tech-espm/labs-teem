@@ -959,7 +959,7 @@ const app = {
      * Assuming there is an image physically located at `/project dir/public/images/avatar.jpg` and that the project is hosted at `example.com`, if `app.staticRoot` is `"/myPublicFiles"`, the image `avatar.jpg` will be accessible from the URL `http://example.com/myPublicFiles/images/avatar.jpg`.
      * On the other hand, if `app.staticRoot` is an empty string `""`, the image `avatar.jpg` will be accessible from the URL `http://example.com/images/avatar.jpg`.
      *
-     * `app.staticRoot` is NOT automatically set and its value comes from `config.root` and `config.staticRoot`. If a value is not provided in `config.staticRoot`, the empty string `""` is used.
+     * `app.staticRoot` is NOT automatically set and its value comes from `config.root` and `config.staticRoot`. If a value is not provided in `config.staticRoot`, `"/public"` is used.
      *
      * If the value in `app.staticRoot` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
      *
@@ -1103,9 +1103,14 @@ const app = {
         app.root = ((!config.root || config.root === "/") ? "" : (config.root.endsWith("/") ? config.root.substr(0, config.root.length - 1) : config.root));
         if (app.root && !app.root.startsWith("/"))
             app.root = "/" + app.root;
-        app.staticRoot = ((!config.staticRoot || config.staticRoot === "/") ? "" : (config.staticRoot.endsWith("/") ? config.staticRoot.substr(0, config.staticRoot.length - 1) : config.staticRoot));
-        if (app.staticRoot && !app.staticRoot.startsWith("/"))
-            app.staticRoot = "/" + app.staticRoot;
+        if (!("staticRoot" in config)) {
+            app.staticRoot = "/public";
+        }
+        else {
+            app.staticRoot = ((!config.staticRoot || config.staticRoot === "/") ? "" : (config.staticRoot.endsWith("/") ? config.staticRoot.substr(0, config.staticRoot.length - 1) : config.staticRoot));
+            if (app.staticRoot && !app.staticRoot.startsWith("/"))
+                app.staticRoot = "/" + app.staticRoot;
+        }
         if (app.root)
             app.staticRoot = app.root + app.staticRoot;
         app.localIp = (("localIp" in config) ? config.localIp : "127.0.0.1");
