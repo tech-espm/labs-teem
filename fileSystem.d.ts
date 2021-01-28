@@ -57,9 +57,9 @@ export declare class FileSystem {
     static createDirectory(projectRelativePath: string, options?: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
     static deleteDirectory(projectRelativePath: string): Promise<void>;
     static deleteFilesAndDirectory(projectRelativePath: string): Promise<void>;
-    static renameFile(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void>;
+    static rename(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void>;
     static deleteFile(projectRelativePath: string): Promise<void>;
-    static fileExists(projectRelativePath: string): Promise<boolean>;
+    static exists(projectRelativePath: string): Promise<boolean>;
     static createNewEmptyFile(projectRelativePath: string, mode?: fs.Mode): Promise<void>;
     static saveBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
     static saveText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;

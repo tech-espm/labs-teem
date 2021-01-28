@@ -266,7 +266,7 @@ export class FileSystem {
 		});
 	}
 
-	public static renameFile(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void> {
+	public static rename(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			try {
 				fs.rename(FileSystem.absolutePath(currentProjectRelativePath), FileSystem.absolutePath(newProjectRelativePath), (err) => {
@@ -296,7 +296,7 @@ export class FileSystem {
 		});
 	}
 
-	public static fileExists(projectRelativePath: string): Promise<boolean> {
+	public static exists(projectRelativePath: string): Promise<boolean> {
 		return new Promise<boolean>((resolve, reject) => {
 			try {
 				fs.access(FileSystem.absolutePath(projectRelativePath), fs.constants.F_OK, (err) => {

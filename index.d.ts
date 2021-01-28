@@ -2,9 +2,10 @@
 import express = require("express");
 import fs = require("fs");
 import { UploadedFile as UF } from "./fileSystem";
-import { JSONResponse as JSONRes, StringResponse as StringRes, BufferResponse as BufferRes } from "./request";
+import { CommonResponse as CommonRes, JSONResponse as JSONRes, StringResponse as StringRes, BufferResponse as BufferRes } from "./request";
 import type { PoolConfig } from "mysql";
 import type { ServeStaticOptions } from "serve-static";
+import type { URL } from "url";
 import type { SqlInterface } from "./sql";
 declare namespace app {
     interface JSONResponse extends JSONRes {
@@ -28,63 +29,436 @@ declare namespace app {
     }
     interface Sql extends SqlInterface {
     }
+    interface Config {
+        root?: string;
+        staticRoot?: string;
+        localIp?: string;
+        port?: number;
+        sqlConfig?: PoolConfig;
+        enableDynamicCompression?: boolean;
+        disableStaticFiles?: boolean;
+        disableViews?: boolean;
+        disableRoutes?: boolean;
+        disableCookies?: boolean;
+        disableBodyParser?: boolean;
+        disableFileUpload?: boolean;
+        disableNoCacheHeader?: boolean;
+        projectDir?: string;
+        mainModuleDir?: string;
+        staticFilesDir?: string;
+        viewsDir?: string;
+        routesDir?: string[];
+        staticFilesConfig?: ServeStaticOptions;
+        viewsCacheSize?: number;
+        bodyParserLimit?: number;
+        logRoutesToConsole?: boolean;
+        useClassNamesAsRoutes?: boolean;
+        allMethodsRoutesAllByDefault?: boolean;
+        allMethodsRoutesHiddenByDefault?: boolean;
+        initCallback?: () => void;
+        beforeRouteCallback?: () => void;
+        afterRouteCallback?: () => void;
+        errorHandler?: ErrorHandler;
+        htmlErrorHandler?: ErrorHandler;
+        setupOnly?: boolean;
+    }
 }
 interface FileSystem {
+    /**
+     * Returns the absolute path of the given relative path.
+     *
+     * `projectRelativePath` is considered to be relative to `app.dir.project` even if starts with a slash `/`.
+     *
+     * For example, if `app.dir.project` is `/home/my-user/projects/example` and `projectRelativePath` is `a/b/img.jpg`, `app.fileSystem.absolutePath()` will return `/home/my-user/projects/example/a/b/img.jpg`.
+     *
+     * If `app.dir.project` is `/home/my-user/projects/example` and `projectRelativePath` is `/a/b/img.jpg`, `app.fileSystem.absolutePath()` will also return `/home/my-user/projects/example/a/b/img.jpg`.
+     *
+     * The same rule applies to Windows systems: if `app.dir.project` is `C:\Users\MyUser\Projects\Example\` and `projectRelativePath` is `a\b\img.jpg`, `app.fileSystem.absolutePath()` will return `C:\Users\MyUser\Projects\Example\a\b\img.jpg`.
+     *
+     * `app.fileSystem.absolutePath()` does not check if the path or any part of it exists.
+     *
+     * `/` and `\` are adjusted automatically in `projectRelativePath`, so that both `a/b/img.jpg` and `a\b\img.jpg` work correctly on Windows, Mac and Linux systems.
+     *
+     * If `projectRelativePath` starts with `../` or `..\`, or if it contains `/../` or `\..\`, an exception will be thrown.
+     *
+     * @param projectRelativePath Path relative to `app.dir.projectDir`.
+     */
     absolutePath(projectRelativePath: string): string;
+    /**
+     * Validates the given filename and returns `null` if the filename is not considered to be safe for creating a file. If the filename is considered to be safe, `app.fileSystem.validateUploadedFilename()` returns `filename.trim()`.
+     *
+     * Although `app.fileSystem.validateUploadedFilename()` is primarily intended to validate a filename provided by the end user before actually creating such file on the local file system, that practice is highly discouraged.
+     *
+     * It is usually recommended to generate a numeric/textual id, for example in a database, associate the given filename within that record, and store the file contents in a file named after the generated id. For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.post()
+     *     '@'app.route.fileUpload()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *         // Save the name provided by the user in the database and generate an id
+     *         const id = await createDatabaseRecordAndGenerateId(req.uploadedFiles.image.originalname);
+     *
+     *         // Save the file using the generated id as its name
+     *         await app.fileSystem.saveUploadedFile(`relative/path/to/images/${id}`, req.uploadedFiles.image);
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     *
+     * If it is absolutely necessary to use the given filename, it can be validated as in the following example:
+     *
+     * ```ts
+     * const filename = app.fileSystem.validateUploadedFilename(req.uploadedFiles.image.originalname);
+     * if (filename) {
+     *     // Use the string in filename
+     * } else {
+     *     // An invalid filename was given
+     * }
+     * ```
+     *
+     * Any string can be validated, not only `app.UploadedFile.originalname`:
+     *
+     * ```ts
+     * const filename = app.fileSystem.validateUploadedFilename(req.body.filenameField);
+     * if (filename) {
+     *     // Use the string in filename
+     * } else {
+     *     // An invalid filename was given
+     * }
+     * ```
+     *
+     * The rules used are basicaly a mix between safety, cross-OS compatibility and actual rules. Refer to https://stackoverflow.com/q/1976007/3569421 for a discussion on that subject.
+     *
+     * @param filename Filename to be validated.
+     */
     validateUploadedFilename(filename: string): string;
+    /**
+     * Creates a new directory located at `projectRelativePath`.
+     *
+     * If `options` is an object containing the property `recursive` set to `true`, non-existing intermediate directories are also created as necessary, otherwise, only the final directory is created.
+     *
+     * It is not an error to try to create a directory that already exists.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the directory to be created. Refer to `app.fileSystem.absolutePath()` for more information.
+     * @param options Optional object with the options to create the directory (Refer to https://nodejs.org/api/fs.html#fs_fs_mkdir_path_options_callback for more information on the options).
+     */
     createDirectory(projectRelativePath: string, options?: fs.Mode | fs.MakeDirectoryOptions): Promise<void>;
+    /**
+     * Deletes the directory given by `projectRelativePath`.
+     *
+     * The method fails if the directory does not exist, if it is not empty or if it cannot be deleted.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the directory to be deleted. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     */
     deleteDirectory(projectRelativePath: string): Promise<void>;
+    /**
+     * Deletes the directory given by `projectRelativePath` along with its contents.
+     *
+     * The method fails if the directory does not exist, if it cannot be deleted or if it is not possible to delete one of its files or directories.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the directory to be deleted. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     */
     deleteFilesAndDirectory(projectRelativePath: string): Promise<void>;
-    renameFile(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void>;
+    /**
+     * Renames the file or directory given by `currentProjectRelativePath`.
+     *
+     * The method fails if `currentProjectRelativePath` does not exist, if it cannot be renamed or if `newProjectRelativePath` already exists.
+     *
+     * @param currentProjectRelativePath Path, relative to `app.dir.projectDir`, of the file/directory to be renamed. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param newProjectRelativePath New path, relative to `app.dir.projectDir`, of the file/directory to be renamed. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     */
+    rename(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void>;
+    /**
+     * Deletes the file given by `projectRelativePath`.
+     *
+     * The method fails if `projectRelativePath` does not exist or cannot be deleted.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be deleted. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     */
     deleteFile(projectRelativePath: string): Promise<void>;
-    fileExists(projectRelativePath: string): Promise<boolean>;
+    /**
+     * Checks if the file or directory given by `projectRelativePath` exists and can be accessed by the user who owns the current Node.js process.
+     *
+     * Refer to https://nodejs.org/api/fs.html#fs_fs_access_path_mode_callback for more information.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file or directory to be checked. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     */
+    exists(projectRelativePath: string): Promise<boolean>;
+    /**
+     * Creates a new empty file.
+     *
+     * The method fails if `projectRelativePath` already exists.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the new file to be created. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param mode Optional mode for the file to be created (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     */
     createNewEmptyFile(projectRelativePath: string, mode?: fs.Mode): Promise<void>;
+    /**
+     * Saves the given buffer to a file.
+     *
+     * The file is created (if it does not exist) or is completely replaced (if it already exists).
+     *
+     * The method fails if `projectRelativePath` cannot be written to.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be written to. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param buffer Buffer to be written to the file.
+     * @param mode Optional mode for the file to be written to (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     */
     saveBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    /**
+     * Saves the given text to a file.
+     *
+     * The file is created (if it does not exist) or is completely replaced (if it already exists).
+     *
+     * The method fails if `projectRelativePath` cannot be written to.
+     *
+     * If no encoding is provided, `utf8` is used.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be written to. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param text Text to be written to the file.
+     * @param mode Optional mode for the file to be written to (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     * @param encoding Optional encoding to be used when converting `text` into bytes (Refer to https://nodejs.org/api/buffer.html#buffer_buffers_and_character_encodings for more information on the available encodings).
+     */
     saveText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    /**
+     * Saves the contents of an uploaded file to a file.
+     *
+     * The file is created (if it does not exist) or is completely replaced (if it already exists).
+     *
+     * The method fails if `projectRelativePath` cannot be written to.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be written to. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param uploadedFile Uploaded file to be saved.
+     * @param mode Optional mode for the file to be written to (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     */
     saveUploadedFile(projectRelativePath: string, uploadedFile: app.UploadedFile, mode?: fs.Mode): Promise<void>;
+    /**
+     * Saves the given buffer to a new file.
+     *
+     * The method fails if `projectRelativePath` already exists.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be created. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param buffer Buffer to be written to the file.
+     * @param mode Optional mode for the file to be created (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     */
     saveBufferToNewFile(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    /**
+     * Saves the given text to a new file.
+     *
+     * The method fails if `projectRelativePath` already exists.
+     *
+     * If no encoding is provided, `utf8` is used.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be created. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param text Text to be written to the file.
+     * @param mode Optional mode for the file to be created (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     * @param encoding Optional encoding to be used when converting `text` into bytes (Refer to https://nodejs.org/api/buffer.html#buffer_buffers_and_character_encodings for more information on the available encodings).
+     */
     saveTextToNewFile(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    /**
+     * Saves the contents of an uploaded file to a new file.
+     *
+     * The method fails if `projectRelativePath` already exists.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be created. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param uploadedFile Uploaded file to be saved.
+     * @param mode Optional mode for the file to be created (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     */
     saveUploadedFileToNewFile(projectRelativePath: string, uploadedFile: app.UploadedFile, mode?: fs.Mode): Promise<void>;
+    /**
+     * Appends the given buffer to a file.
+     *
+     * The file is created (if it does not exist) or `buffer` is appended to its end (if it already exists).
+     *
+     * The method fails if `projectRelativePath` cannot be written to.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be appended to. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param buffer Buffer to be appended to the file.
+     * @param mode Optional mode for the file to be appended to (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     */
     appendBuffer(projectRelativePath: string, buffer: Buffer, mode?: fs.Mode): Promise<void>;
+    /**
+     * Appends the given text to a file.
+     *
+     * The file is created (if it does not exist) or `text` is appended to its end (if it already exists).
+     *
+     * The method fails if `projectRelativePath` cannot be written to.
+     *
+     * If no encoding is provided, `utf8` is used.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be appended to. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param text Text to be appended to the file.
+     * @param mode Optional mode for the file to be appended to (Refer to https://nodejs.org/api/fs.html#fs_file_modes for more information on the available modes).
+     * @param encoding Optional encoding to be used when converting `text` into bytes (Refer to https://nodejs.org/api/buffer.html#buffer_buffers_and_character_encodings for more information on the available encodings).
+     */
     appendText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
+    /**
+     * Appends the given buffer to an existing file.
+     *
+     * `buffer` is appended to the end of the file given by `projectRelativePath`.
+     *
+     * The method fails if `projectRelativePath` cannot be written to or if it does not exist.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be appended to. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param buffer Buffer to be appended to the file.
+     */
     appendBufferToExistingFile(projectRelativePath: string, buffer: Buffer): Promise<void>;
+    /**
+     * Appends the given text to an existing file.
+     *
+     * `text` is appended to the end of the file given by `projectRelativePath`.
+     *
+     * The method fails if `projectRelativePath` cannot be written to or if it does not exist.
+     *
+     * If no encoding is provided, `utf8` is used.
+     *
+     * @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be appended to. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+     * @param text Text to be appended to the file.
+     * @param encoding Optional encoding to be used when converting `text` into bytes (Refer to https://nodejs.org/api/buffer.html#buffer_buffers_and_character_encodings for more information on the available encodings).
+     */
     appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void>;
 }
-interface JSONRequest {
-    delete(url: string, headers?: any): Promise<app.JSONResponse>;
-    deleteObject(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
-    deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
-    get(url: string, headers?: any): Promise<app.JSONResponse>;
-    patch(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
-    patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
-    post(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
-    postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
-    put(url: string, object: any, headers?: any): Promise<app.JSONResponse>;
-    putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.JSONResponse>;
+interface CommonRequest<T extends CommonRes> {
+    /**
+     * Sends a DELETE request without a body.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    delete(url: string | URL, headers?: any): Promise<T>;
+    /**
+     * Sends a DELETE request with the given body.
+     *
+     * The value of the `Content-Type` header, indicating the type of the content in `body`, must be specified in `contentType`.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param body Buffer containing the body of the request.
+     * @param contentType Value of the `Content-Type` header, indicating the type of the content in `body`.
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    deleteBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<T>;
+    /**
+     * Sends a DELETE request with an `application/json` body containing the JSON representation of `object`.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param object Object to be sent as the body of the request (this object is internally converted into a JSON string using `JSON.stringify()`).
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    deleteObject(url: string | URL, object: any, headers?: any): Promise<T>;
+    /**
+     * Sends a GET request.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    get(url: string | URL, headers?: any): Promise<T>;
+    /**
+     * Sends a PATCH request with the given body.
+     *
+     * The value of the `Content-Type` header, indicating the type of the content in `body`, must be specified in `contentType`.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param body Buffer containing the body of the request.
+     * @param contentType Value of the `Content-Type` header, indicating the type of the content in `body`.
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    patchBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<T>;
+    /**
+     * Sends a PATCH request with an `application/json` body containing the JSON representation of `object`.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param object Object to be sent as the body of the request (this object is internally converted into a JSON string using `JSON.stringify()`).
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    patchObject(url: string | URL, object: any, headers?: any): Promise<T>;
+    /**
+     * Sends a POST request with the given body.
+     *
+     * The value of the `Content-Type` header, indicating the type of the content in `body`, must be specified in `contentType`.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param body Buffer containing the body of the request.
+     * @param contentType Value of the `Content-Type` header, indicating the type of the content in `body`.
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    postBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<T>;
+    /**
+     * Sends a POST request with an `application/json` body containing the JSON representation of `object`.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param object Object to be sent as the body of the request (this object is internally converted into a JSON string using `JSON.stringify()`).
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    postObject(url: string | URL, object: any, headers?: any): Promise<T>;
+    /**
+     * Sends a PUT request with the given body.
+     *
+     * The value of the `Content-Type` header, indicating the type of the content in `body`, must be specified in `contentType`.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param body Buffer containing the body of the request.
+     * @param contentType Value of the `Content-Type` header, indicating the type of the content in `body`.
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    putBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<T>;
+    /**
+     * Sends a PUT request with an `application/json` body containing the JSON representation of `object`.
+     *
+     * This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
+     *
+     * @param url Complete URL of the request (including any optional query string parameters).
+     * @param object Object to be sent as the body of the request (this object is internally converted into a JSON string using `JSON.stringify()`).
+     * @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+     *
+     * @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
+     */
+    putObject(url: string | URL, object: any, headers?: any): Promise<T>;
 }
-interface StringRequest {
-    delete(url: string, headers?: any): Promise<app.StringResponse>;
-    deleteObject(url: string, object: any, headers?: any): Promise<app.StringResponse>;
-    deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
-    get(url: string, headers?: any): Promise<app.StringResponse>;
-    patch(url: string, object: any, headers?: any): Promise<app.StringResponse>;
-    patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
-    post(url: string, object: any, headers?: any): Promise<app.StringResponse>;
-    postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
-    put(url: string, object: any, headers?: any): Promise<app.StringResponse>;
-    putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.StringResponse>;
+interface JSONRequest extends CommonRequest<app.JSONResponse> {
 }
-interface BufferRequest {
-    delete(url: string, headers?: any): Promise<app.BufferResponse>;
-    deleteObject(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
-    deleteBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
-    get(url: string, headers?: any): Promise<app.BufferResponse>;
-    patch(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
-    patchBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
-    post(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
-    postBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
-    put(url: string, object: any, headers?: any): Promise<app.BufferResponse>;
-    putBuffer(url: string, body: Buffer, contentType: string, headers?: any): Promise<app.BufferResponse>;
+interface StringRequest extends CommonRequest<app.StringResponse> {
+}
+interface BufferRequest extends CommonRequest<app.BufferResponse> {
 }
 interface Sql {
     /**
@@ -98,7 +472,7 @@ interface Sql {
      *
      * ```ts
      * class A {
-     *     public async method(): Promise<void> {
+     *     public async m1() {
      *         await app.sql.connect(async (sql) => {
      *             ...
      *             await sql.query("INSERT INTO ...");
@@ -108,11 +482,11 @@ interface Sql {
      * }
      * ```
      *
-     * `app.sql.connect()` returns whatever the callback returns. For example:
+     * `app.sql.connect()` returns a `Promise` object that will be resolved with the value returned by the callback. For example:
      *
      * ```ts
      * class A {
-     *     public async method(): Promise<void> {
+     *     public async m1() {
      *         const x = await app.sql.connect(async (sql) => {
      *             ...
      *             return 123;
@@ -123,47 +497,578 @@ interface Sql {
      *     }
      * }
      * ```
+     *
      * @param callback Function to be executed when a connection is successfully fetched from the pool.
+     *
+     * @returns A `Promise` object that will be resolved with the value returned by the callback.
      */
     connect<T>(callback: (sql: app.Sql) => Promise<T>): Promise<T>;
 }
 interface ErrorHandler {
     (err: any, req: app.Request, res: app.Response, next: app.NextFunction): Promise<void> | void;
 }
-interface Config {
-    root?: string;
-    staticRoot?: string;
-    localIp?: string;
-    port?: number;
-    sqlConfig?: PoolConfig;
-    enableDynamicCompression?: boolean;
-    disableStaticFiles?: boolean;
-    disableViews?: boolean;
-    disableRoutes?: boolean;
-    disableCookies?: boolean;
-    disableBodyParser?: boolean;
-    disableFileUpload?: boolean;
-    disableNoCacheHeader?: boolean;
-    projectDir?: string;
-    mainModuleDir?: string;
-    staticFilesDir?: string;
-    viewsDir?: string;
-    routesDir?: string[];
-    staticFilesConfig?: ServeStaticOptions;
-    viewsCacheSize?: number;
-    bodyParserLimit?: number;
-    logRoutesToConsole?: boolean;
-    useClassNamesAsRoutes?: boolean;
-    allMethodsRoutesAllByDefault?: boolean;
-    allMethodsRoutesHiddenByDefault?: boolean;
-    initCallback?: () => void;
-    beforeRouteCallback?: () => void;
-    afterRouteCallback?: () => void;
-    errorHandler?: ErrorHandler;
-    htmlErrorHandler?: ErrorHandler;
-    setupOnly?: boolean;
+interface RouteDecorators {
+    /**
+     * Specifies the full path to be used to prefix the routes created by the class' methods.
+     *
+     * If this decorator is not used, the concatenation of current file's directory (relative to `app.dir.routes`) + name is used as the prefix.
+     *
+     * For example, assume `app.dir.routes = ["/path/to/project/routes"]` and the class below is in the file `/path/to/project/routes/api/sales/order.js`.
+     *
+     * ```ts
+     * class Order {
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
+     *
+     * But if the decorator `@app.route.fullClassRoute("/my/custom/route")` were used, as in the example below, method `Order.m1()` would produce the route `/my/custom/route/m1`.
+     *
+     * ```ts
+     * '@'app.route.fullClassRoute("/my/custom/route")
+     * class Order {
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     *
+     * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
+     *
+     * When in doubt, set `config.logRoutesToConsole` to `true` to list all the routes produced during setup.
+     *
+     * @param routeFullClassRoute Full path to be used to prefix the routes created by the class' methods.
+     */
+    fullClassRoute(routeFullClassRoute: string): ClassDecorator;
+    /**
+     * Specifies the full path to be used as the method's route, overriding everything else.
+     *
+     * If this decorator is not used, the concatenation of current class' route prefix + the method name is used as the route.
+     *
+     * For example, assume `app.dir.routes = ["/path/to/project/routes"]` and the class below is in the file `/path/to/project/routes/api/sales/order.js`.
+     *
+     * ```ts
+     * class Order {
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
+     *
+     * But if the decorator `@app.route.fullMethodRoute("/my/custom/method/route")` were used, as in the example below, method `Order.m1()` would produce the route `/my/custom/method/route`.
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.route.fullMethodRoute("/my/custom/method/route")
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     *
+     * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
+     *
+     * When in doubt, set `config.logRoutesToConsole` to `true` to list all the routes produced during setup.
+     *
+     * @param routeFullMethodRoute Full path to be used as the method's route.
+     */
+    fullMethodRoute(routeFullMethodRoute: string): MethodDecorator;
+    /**
+     * Specifies the name to be used when composing the class' route prefix.
+     *
+     * If this decorator is not used, either the actual name of the class or the current file name is used to create the class' route prefix (depending on the setting `config.useClassNamesAsRoutes`).
+     *
+     * For example, assume `app.dir.routes = ["/path/to/project/routes"]` and the class below is in the file `/path/to/project/routes/api/sales/order.js`.
+     *
+     * ```ts
+     * class Order {
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
+     *
+     * But if the decorator `@app.route.className("newName")` were used, as in the example below, method `Order.m1()` would produce the route `/api/sales/newName/m1` (ignoring the setting `config.useClassNamesAsRoutes`).
+     *
+     * ```ts
+     * '@'app.route.className("newName")
+     * class Order {
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     *
+     * The decorator `@app.route.fullClassRoute` overrides this one.
+     *
+     * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
+     *
+     * When in doubt, set `config.logRoutesToConsole` to `true` to list all the routes produced during setup.
+     *
+     * @param routeClassName Name to be used when composing the class' route prefix.
+     */
+    className(routeClassName: string): ClassDecorator;
+    /**
+     * Specifies the name to be used when composing the method's route.
+     *
+     * If this decorator is not used, the actual method's name is used to create route.
+     *
+     * For example, assume `app.dir.routes = ["/path/to/project/routes"]` and the class below is in the file `/path/to/project/routes/api/sales/order.js`.
+     *
+     * ```ts
+     * class Order {
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
+     *
+     * But if the decorator `@app.route.methodName("myMethod")` were used, as in the example below, method `Order.m1()` would produce the route `/api/sales/order/myMethod` (or `/api/sales/Order/myMethod` if the setting `config.useClassNamesAsRoutes` is `true` or `xxx/myMethod` if either decorator `@app.route.fullClassRoute()` or decorator `@app.route.className()` is used on class `Order`).
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.route.methodName("myMethod")
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     *
+     * The decorator `@app.route.fullMethodRoute` overrides this one.
+     *
+     * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
+     *
+     * When in doubt, set `config.logRoutesToConsole` to `true` to list all the routes produced during setup.
+     *
+     * @param routeClassName Name to be used when composing the class' route prefix.
+     */
+    methodName(routeMethodName: string): MethodDecorator;
+    /**
+     * Specifies one or more middlewares to be used with the method's route.
+     *
+     * For example, to add a single middleware:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.route.middleware(myMiddleware())
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * When adding two or more middlewares, they will be executed in the same order they were passed:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.route.middleware(firstMiddleware(), secondMiddleware(), thridMiddleware())
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     *
+     * Refer to https://expressjs.com/en/guide/using-middleware.html for more information on middlewares.
+     *
+     * @param middleware One or more middlewares to be used with the method's route.
+     */
+    middleware(...middleware: any[]): MethodDecorator;
+    /**
+     * Indicates that files could be uploaded to the server through this route.
+     *
+     * Internally, this is done using the package multer (https://www.npmjs.com/package/multer).
+     *
+     * In order to make this feature work, you must make a request using HTTP method `DELETE`, `PATCH`, `POST` or `PUT`.
+     *
+     * That means at least one of the following decorators must be used:
+     *
+     * - `@app.http.all()`
+     * - `@app.http.delete()`
+     * - `@app.http.patch()`
+     * - `@app.http.post()`
+     * - `@app.http.put()`
+     *
+     * Also, if using a `<form>` element, it must have the attribute `enctype="multipart/form-data"`, like in the example below:
+     *
+     * ```html
+     * <form method="post" action="route/m1" enctype="multipart/form-data" id="myForm">
+     *     <div>
+     *         <label for="name">Name</label>
+     *         <input name="name" type="text" />
+     *     </div>
+     *     <div>
+     *         <label for="address">Address</label>
+     *         <input name="address" type="text" />
+     *     </div>
+     *     <div>
+     *         <label for="avatar">Avatar</label>
+     *         <input name="avatar" type="file" accept="image/*" />
+     *     </div>
+     *     <div>
+     *         <input type="submit" value="Sign Up" />
+     *     </div>
+     * </form>
+     * ```
+     *
+     * Alternatively you can submit the form using JavaScript (pure or through third-party libraries, such as jQuery) like in the example below:
+     *
+     * ```js
+     * var form = document.getElementById("myForm");
+     *
+     * var formData = new FormData(form);
+     *
+     * $.ajax({
+     *     url: "route/m1",
+     *     method: "post",
+     *     data: formData,
+     *     contentType: false,
+     *     processData: false,
+     *     success: function () { ... },
+     *     error: function () { ... }
+     * });
+     * ```
+     *
+     * Refer to https://api.jquery.com/jquery.ajax/ and to https://developer.mozilla.org/en-US/docs/Web/API/FormData for more information on the API's used in the JavaScript example above.
+     *
+     * Then, you can use `req.uploadedFiles` or `req.uploadedFilesArray` to access the uploaded file(s).
+     *
+     * `req.uploadedFiles` is a dictionary from which you can access the uploaded file(s) by the `name` attribute used in the `<input>` element.
+     *
+     * `req.uploadedFilesArray` is an array from which you can access the uploaded file(s) by their numeric index. This is useful if you need to receive more than one file with the same `name` attribute, because in such cases, `req.uploadedFiles` will only hold the first uploaded file with a given `name` attribute.
+     *
+     * The code below is an example of how to access the file uploaded in the HTML above:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.post()
+     *     '@'app.route.fileUpload()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         // Accessing the files by their name
+     *         console.log(req.uploadedFiles.avatar.size);
+     *
+     *         // Iterating through the array
+     *         for (let i = 0; i < req.uploadedFilesArray.length; i++) {
+     *             console.log(req.uploadedFilesArray[i].size);
+     *         }
+     *     }
+     * }
+     * ```
+     *
+     * In a real code you should always check for the existence of a file before using it, because it could be `undefined` if the user fails to actually send a file:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.post()
+     *     '@'app.route.fileUpload()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         if (!req.uploadedFiles.avatar) {
+     *             // User did not send the file
+     *         } else {
+     *             // File has been sent
+     *         }
+     *     }
+     * }
+     * ```
+     *
+     * If a value is given for the parameter `limitFileSize`, and the user sends a file larger than `limitFileSize`, the properties `errorCode` and `errorMessage` will be set, indicating the presence of an error in the file. Error codes and messages come directly from multer.
+     *
+     * When a value is not provided for `limitFileSize`, 10MiB (10485760 bytes) is used.
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.post()
+     *     '@'app.route.fileUpload(500000)
+     *     public m1(req: app.Request, res: app.Response) {
+     *         if (!req.uploadedFiles.avatar) {
+     *             // User did not send the file
+     *         } else if (req.uploadedFiles.avatar.errorCode) {
+     *             // File has been sent, but its size exceeds 500000 bytes
+     *         } else {
+     *             // File has been sent OK
+     *         }
+     *     }
+     * }
+     * ```
+     *
+     * You can access the file's contents directly through its `buffer` or you can save the file in disk:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.post()
+     *     '@'app.route.fileUpload(500000)
+     *     public m1(req: app.Request, res: app.Response) {
+     *         if (!req.uploadedFiles.avatar) {
+     *             // User did not send the file
+     *         } else if (req.uploadedFiles.avatar.errorCode) {
+     *             // File has been sent, but its size exceeds 500000 bytes
+     *         } else {
+     *             app.fileSystem.saveBuffer("avatars/123.jpg", req.uploadedFiles.avatar.buffer);
+     *         }
+     *     }
+     * }
+     * ```
+     *
+     * Since all files are stored in memory, depending on the amount of files uploaded to the server during a given period of time and depending on the size of the files, this approach could cause too much pressure on the server's memory. In such cases it is advisable to use multer directly as any other middleware (using `@app.route.middleware`) and configure it in more advanced ways.
+     *
+     * For convenience, multer can be accessed through `app.multer` without the need for requiring it.
+     *
+     * If `config.disableFileUpload` is `true`, though, `app.multer` is `null` and the decorator `@app.route.fileUpload()` cannot be used.
+     *
+     * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     *
+     * @param middleware One or more middlewares to be used with the method's route.
+     */
+    fileUpload(limitFileSize?: number): MethodDecorator;
 }
-declare const app: {
+interface HttpDecorators {
+    /**
+     * Informs the class' method accepts all HTTP methods.
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.all()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    all(): MethodDecorator;
+    /**
+     * Informs the class' method accepts the HTTP method GET (can be used with any other `app.http` method decorator).
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.get()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    get(): MethodDecorator;
+    /**
+     * Informs the class' method accepts the HTTP method POST (can be used with any other `app.http` method decorator).
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.post()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    post(): MethodDecorator;
+    /**
+     * Informs the class' method accepts the HTTP method PUT (can be used with any other `app.http` method decorator).
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.put()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    put(): MethodDecorator;
+    /**
+     * Informs the class' method accepts the HTTP method DELETE (can be used with any other `app.http` method decorator).
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.delete()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    delete(): MethodDecorator;
+    /**
+     * Informs the class' method accepts the HTTP method PATCH (can be used with any other `app.http` method decorator).
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.patch()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    patch(): MethodDecorator;
+    /**
+     * Informs the class' method accepts the HTTP method OPTIONS (can be used with any other `app.http` method decorator).
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.options()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    options(): MethodDecorator;
+    /**
+     * Informs the class' method accepts the HTTP method HEAD (can be used with any other `app.http` method decorator).
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.head()
+     *     public m1(req: app.Request, res: app.Response) {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    head(): MethodDecorator;
+    /**
+     * Informs the class' method accepts no HTTP methods at all (effectively not producing a route).
+     *
+     * This decorator overrides all other `app.http` and `app.route` decorators.
+     *
+     * For example:
+     *
+     * ```ts
+     * class Order {
+     *     '@'app.http.hidden()
+     *     public m1() {
+     *         ...
+     *     }
+     * }
+     * ```
+     *
+     * The @ character MUST NOT be placed between '' in the actual code.
+     */
+    hidden(): MethodDecorator;
+}
+interface RequestMethods {
+    /**
+     * Provides basic methods to send data and receive JSON objects from remote servers.
+     */
+    json: JSONRequest;
+    /**
+     * Provides basic methods to send data and receive strings from remote servers.
+     */
+    string: StringRequest;
+    /**
+     * Provides basic methods to send data and receive raw buffers from remote servers.
+     */
+    buffer: BufferRequest;
+}
+interface Directories {
+    /**
+     * The initial working directory, obtained by calling `process.cwd()` at the beginning of the setup process.
+     */
+    initial: string;
+    /**
+     * The directory where the main app's module is located.
+     *
+     * If a value is not provided in `config.mainModuleDir`, the directory of the module calling `app.run()` is used.
+     *
+     * Using `require.main.path` does not work on some cloud providers, because they perform additional requires of their own before actually executing the app's main file (like `app.js`, `server.js` or `index.js`).
+     *
+     * `app.dir.mainModule` is used as `app.dir.routes`'s base directory when `config.routesDir` is not provided.
+     */
+    mainModule: string;
+    /**
+     * The app's "project" directory.
+     *
+     * If a value is not provided in `config.projectDir`, `app.dir.initial` is used.
+     *
+     * `app.dir.project` is used as `app.dir.staticFiles`'s and `app.dir.views`'s base directory when `config.staticFilesDir` / `config.viewsDir` are not provided.
+     *
+     * `app.dir.project` is also used as the base directory for all `app.fileSystem` methods.
+     */
+    project: string;
+    /**
+     * The app's static files directory.
+     *
+     * If a value is not provided in `config.staticFilesDir`, `app.dir.project + "/public"` is used.
+     *
+     * If `config.disableStaticFiles` is `true`, `app.dir.staticFiles` is `null` and static file handling is not automatically configured.
+     */
+    staticFiles: string;
+    /**
+     * The app's views directory.
+     *
+     * If a value is not provided in `config.viewsDir`, `app.dir.project + "/views"` is used.
+     *
+     * If `config.disableViews` is `true`, `app.dir.views` is `null` and the EJS engine is not automatically configured.
+     */
+    views: string;
+    /**
+     * The app's routes directories.
+     *
+     * If a value is not provided in `config.routesDir`, the following four values are used:
+     * - `app.dir.mainModule + "/routes"`
+     * - `app.dir.mainModule + "/route"`
+     * - `app.dir.mainModule + "/controllers"`
+     * - `app.dir.mainModule + "/controller"`
+     *
+     * If a directory in `app.dir.routes` does not exist, it is automatically removed from the array.
+     *
+     * If `config.disableRoutes` is `true`, `app.dir.routes` is `[]` and the routing is not automatically configured.
+     */
+    routes: string[];
+}
+interface App {
     /**
      * Decorators used to map class/method routes.
      *
@@ -180,334 +1085,7 @@ declare const app: {
      *
      * Refer to https://www.typescriptlang.org/docs/handbook/decorators.html for more information on decorators.
      */
-    route: {
-        /**
-         * Specifies the full path to be used to prefix the routes created by the class' methods.
-         *
-         * If this decorator is not used, the concatenation of current file's directory (relative to `app.dir.routes`) + name is used as the prefix.
-         *
-         * For example, assume `app.dir.routes = ["/path/to/project/routes"]` and the class below is in the file `/path/to/project/routes/api/sales/order.js`.
-         *
-         * ```ts
-         * class Order {
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
-         *
-         * But if the decorator `@app.route.fullClassRoute("/my/custom/route")` were used, as in the example below, method `Order.m1()` would produce the route `/my/custom/route/m1`.
-         *
-         * ```ts
-         * '@'app.route.fullClassRoute("/my/custom/route")
-         * class Order {
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         *
-         * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
-         *
-         * When in doubt, set `config.logRoutesToConsole` to `true` to list all the routes produced during setup.
-         * @param routeFullClassRoute Full path to be used to prefix the routes created by the class' methods.
-         */
-        fullClassRoute: (routeFullClassRoute: string) => ClassDecorator;
-        /**
-         * Specifies the full path to be used as the method's route, overriding everything else.
-         *
-         * If this decorator is not used, the concatenation of current class' route prefix + the method name is used as the route.
-         *
-         * For example, assume `app.dir.routes = ["/path/to/project/routes"]` and the class below is in the file `/path/to/project/routes/api/sales/order.js`.
-         *
-         * ```ts
-         * class Order {
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
-         *
-         * But if the decorator `@app.route.fullMethodRoute("/my/custom/method/route")` were used, as in the example below, method `Order.m1()` would produce the route `/my/custom/method/route`.
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.route.fullMethodRoute("/my/custom/method/route")
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         *
-         * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
-         *
-         * When in doubt, set `config.logRoutesToConsole` to `true` to list all the routes produced during setup.
-         * @param routeFullMethodRoute Full path to be used as the method's route.
-         */
-        fullMethodRoute: (routeFullMethodRoute: string) => MethodDecorator;
-        /**
-         * Specifies the name to be used when composing the class' route prefix.
-         *
-         * If this decorator is not used, either the actual name of the class or the current file name is used to create the class' route prefix (depending on the setting `config.useClassNamesAsRoutes`).
-         *
-         * For example, assume `app.dir.routes = ["/path/to/project/routes"]` and the class below is in the file `/path/to/project/routes/api/sales/order.js`.
-         *
-         * ```ts
-         * class Order {
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
-         *
-         * But if the decorator `@app.route.className("newName")` were used, as in the example below, method `Order.m1()` would produce the route `/api/sales/newName/m1` (ignoring the setting `config.useClassNamesAsRoutes`).
-         *
-         * ```ts
-         * '@'app.route.className("newName")
-         * class Order {
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         *
-         * The decorator `@app.route.fullClassRoute` overrides this one.
-         *
-         * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
-         *
-         * When in doubt, set `config.logRoutesToConsole` to `true` to list all the routes produced during setup.
-         * @param routeClassName Name to be used when composing the class' route prefix.
-         */
-        className: (routeClassName: string) => ClassDecorator;
-        /**
-         * Specifies the name to be used when composing the method's route.
-         *
-         * If this decorator is not used, the actual method's name is used to create route.
-         *
-         * For example, assume `app.dir.routes = ["/path/to/project/routes"]` and the class below is in the file `/path/to/project/routes/api/sales/order.js`.
-         *
-         * ```ts
-         * class Order {
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
-         *
-         * But if the decorator `@app.route.methodName("myMethod")` were used, as in the example below, method `Order.m1()` would produce the route `/api/sales/order/myMethod` (or `/api/sales/Order/myMethod` if the setting `config.useClassNamesAsRoutes` is `true` or `xxx/myMethod` if either decorator `@app.route.fullClassRoute()` or decorator `@app.route.className()` is used on class `Order`).
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.route.methodName("myMethod")
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         *
-         * The decorator `@app.route.fullMethodRoute` overrides this one.
-         *
-         * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
-         *
-         * When in doubt, set `config.logRoutesToConsole` to `true` to list all the routes produced during setup.
-         * @param routeClassName Name to be used when composing the class' route prefix.
-         */
-        methodName: (routeMethodName: string) => MethodDecorator;
-        /**
-         * Specifies one or more middlewares to be used with the method's route.
-         *
-         * For example, to a single middleware:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.route.middleware(myMiddleware())
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * When adding two or more middlewares, they will be executed in the same order they were passed:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.route.middleware(firstMiddleware(), secondMiddleware(), thridMiddleware())
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         *
-         * Refer to https://expressjs.com/en/guide/using-middleware.html for more information on middlewares.
-         * @param middleware One or more middlewares to be used with the method's route.
-         */
-        middleware: (...middleware: any[]) => MethodDecorator;
-        /**
-         * Indicates that files could be uploaded to the server through this route.
-         *
-         * Internally, this is done using the package multer (https://www.npmjs.com/package/multer).
-         *
-         * In order to make this feature work, you must make a request using HTTP method `DELETE`, `PATCH`, `POST` or `PUT`.
-         *
-         * That means at least one of the following decorators must be used:
-         *
-         * - `@app.http.all()`
-         * - `@app.http.delete()`
-         * - `@app.http.patch()`
-         * - `@app.http.post()`
-         * - `@app.http.put()`
-         *
-         * Also, if using a `<form>` element, it must have the attribute `enctype="multipart/form-data"`, like in the example below:
-         *
-         * ```html
-         * <form method="post" action="route/m1" enctype="multipart/form-data" id="myForm">
-         *     <div>
-         *         <label for="name">Name</label>
-         *         <input name="name" type="text" />
-         *     </div>
-         *     <div>
-         *         <label for="address">Address</label>
-         *         <input name="address" type="text" />
-         *     </div>
-         *     <div>
-         *         <label for="avatar">Avatar</label>
-         *         <input name="avatar" type="file" accept="image/*" />
-         *     </div>
-         *     <div>
-         *         <input type="submit" value="Sign Up" />
-         *     </div>
-         * </form>
-         * ```
-         *
-         * Alternatively you can submit the form using JavaScript (pure or through third-party libraries, such as jQuery) like in the example below:
-         *
-         * ```js
-         * var form = document.getElementById("myForm");
-         *
-         * var formData = new FormData(form);
-         *
-         * $.ajax({
-         *     url: "route/m1",
-         *     method: "post",
-         *     data: formData,
-         *     contentType: false,
-         *     processData: false,
-         *     success: function () { ... },
-         *     error: function () { ... }
-         * });
-         * ```
-         *
-         * Refer to https://api.jquery.com/jquery.ajax/ and to https://developer.mozilla.org/en-US/docs/Web/API/FormData for more information on the API's used in the JavaScript example above.
-         *
-         * Then, you can use `req.uploadedFiles` or `req.uploadedFilesArray` to access the uploaded file(s).
-         *
-         * `req.uploadedFiles` is a dictionary from which you can access the uploaded file(s) by the `name` attribute used in the `<input>` element.
-         *
-         * `req.uploadedFilesArray` is an array from which you can access the uploaded file(s) by their numeric index. This is useful if you need to receive more than one file with the same `name` attribute, because in such cases, `req.uploadedFiles` will only hold the first uploaded file with a given `name` attribute.
-         *
-         * The code below is an example of how to access the file uploaded in the HTML above:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.post()
-         *     '@'app.route.fileUpload()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         // Accessing the files by their name
-         *         console.log(req.uploadedFiles.avatar.size);
-         *
-         *         // Iterating through the array
-         *         for (let i = 0; i < req.uploadedFilesArray.length; i++) {
-         *             console.log(req.uploadedFilesArray[i].size);
-         *         }
-         *     }
-         * }
-         * ```
-         *
-         * In a real code you should always check for the existence of a file before using it, because it could be `undefined` if the user fails to actually send a file:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.post()
-         *     '@'app.route.fileUpload()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         if (!req.uploadedFiles.avatar) {
-         *             // User did not send the file
-         *         } else {
-         *             // File has been sent
-         *         }
-         *     }
-         * }
-         * ```
-         *
-         * If a value is given for the parameter `limitFileSize`, and the user sends a file larger than `limitFileSize`, the properties `errorCode` and `errorMessage` will be set, indicating the presence of an error in the file. Error codes and messages come directly from multer.
-         *
-         * When a value is not provided for `limitFileSize`, 10MiB (10485760 bytes) is used.
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.post()
-         *     '@'app.route.fileUpload(500000)
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         if (!req.uploadedFiles.avatar) {
-         *             // User did not send the file
-         *         } else if (req.uploadedFiles.avatar.errorCode) {
-         *             // File has been sent, but its size exceeds 500000 bytes
-         *         } else {
-         *             // File has been sent OK
-         *         }
-         *     }
-         * }
-         * ```
-         *
-         * You can access the file's contents directly through its `buffer` or you can save the file in disk:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.post()
-         *     '@'app.route.fileUpload(500000)
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         if (!req.uploadedFiles.avatar) {
-         *             // User did not send the file
-         *         } else if (req.uploadedFiles.avatar.errorCode) {
-         *             // File has been sent, but its size exceeds 500000 bytes
-         *         } else {
-         *             app.fileSystem.saveBuffer("avatars/123.jpg", req.uploadedFiles.avatar.buffer);
-         *         }
-         *     }
-         * }
-         * ```
-         *
-         * Since all files are stored in memory, depending on the amount of files uploaded to the server during a given period of time and depending on the size of the files, this approach could cause too much pressure on the server's memory. In such cases it is advisable to use multer directly as any other middleware (using `@app.route.middleware`) and configure it in more advanced ways.
-         *
-         * For convenience, multer can be accessed through `app.multer` without the need for requiring it.
-         *
-         * If `config.disableFileUpload` is `true`, though, `app.multer` is `null` and the decorator `@app.route.fileUpload()` cannot be used.
-         *
-         * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         * @param middleware One or more middlewares to be used with the method's route.
-         */
-        fileUpload: (limitFileSize?: number) => MethodDecorator;
-    };
+    route: RouteDecorators;
     /**
      * Decorators used to specify which HTTP methods a class' method accepts.
      *
@@ -524,163 +1102,7 @@ declare const app: {
      *
      * Refer to https://www.typescriptlang.org/docs/handbook/decorators.html for more information on decorators.
      */
-    http: {
-        /**
-         * Informs the class' method accepts all HTTP methods.
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.all()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        all: () => MethodDecorator;
-        /**
-         * Informs the class' method accepts the HTTP method GET (can be used with any other `app.http` method decorator).
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.get()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        get: () => MethodDecorator;
-        /**
-         * Informs the class' method accepts the HTTP method POST (can be used with any other `app.http` method decorator).
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.post()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        post: () => MethodDecorator;
-        /**
-         * Informs the class' method accepts the HTTP method PUT (can be used with any other `app.http` method decorator).
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.put()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        put: () => MethodDecorator;
-        /**
-         * Informs the class' method accepts the HTTP method DELETE (can be used with any other `app.http` method decorator).
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.delete()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        delete: () => MethodDecorator;
-        /**
-         * Informs the class' method accepts the HTTP method PATCH (can be used with any other `app.http` method decorator).
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.patch()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        patch: () => MethodDecorator;
-        /**
-         * Informs the class' method accepts the HTTP method OPTIONS (can be used with any other `app.http` method decorator).
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.options()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        options: () => MethodDecorator;
-        /**
-         * Informs the class' method accepts the HTTP method HEAD (can be used with any other `app.http` method decorator).
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.head()
-         *     public m1(req: app.Request, res: app.Response): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        head: () => MethodDecorator;
-        /**
-         * Informs the class' method accepts no HTTP methods at all (effectively not producing a route).
-         *
-         * This decorator overrides all other `app.http` and `app.route` decorators.
-         *
-         * For example:
-         *
-         * ```ts
-         * class Order {
-         *     '@'app.http.hidden()
-         *     public m1(): void {
-         *         ...
-         *     }
-         * }
-         * ```
-         *
-         * The @ character MUST NOT be placed between '' in the actual code.
-         */
-        hidden: () => MethodDecorator;
-    };
+    http: HttpDecorators;
     /**
      * The root path where this app is located in the actual server, in case the server hosts several apps in a single domain.
      *
@@ -729,89 +1151,21 @@ declare const app: {
     /**
      * Important paths used by the framework.
      */
-    dir: {
-        /**
-         * The initial working directory, obtained by calling `process.cwd()` at the beginning of the setup process.
-         */
-        initial: string;
-        /**
-         * The directory where the main app's module is located.
-         *
-         * If a value is not provided in `config.mainModuleDir`, the directory of the module calling `app.run()` is used.
-         *
-         * Using `require.main.path` does not work on some cloud providers, because they perform additional requires of their own before actually executing the app's main file (like `app.js`, `server.js` or `index.js`).
-         *
-         * `app.dir.mainModule` is used as `app.dir.routes`'s base directory when `config.routesDir` is not provided.
-         */
-        mainModule: string;
-        /**
-         * The app's "project" directory.
-         *
-         * If a value is not provided in `config.projectDir`, `app.dir.initial` is used.
-         *
-         * `app.dir.project` is used as `app.dir.staticFiles`'s and `app.dir.views`'s base directory when `config.staticFilesDir` / `config.viewsDir` are not provided.
-         *
-         * `app.dir.project` is also used as the base directory for all `app.fileSystem` methods.
-         */
-        project: string;
-        /**
-         * The app's static files directory.
-         *
-         * If a value is not provided in `config.staticFilesDir`, `app.dir.project + "/public"` is used.
-         *
-         * If `config.disableStaticFiles` is `true`, `app.dir.staticFiles` is `null` and static file handling is not automatically configured.
-         */
-        staticFiles: string;
-        /**
-         * The app's views directory.
-         *
-         * If a value is not provided in `config.viewsDir`, `app.dir.project + "/views"` is used.
-         *
-         * If `config.disableViews` is `true`, `app.dir.views` is `null` and the EJS engine is not automatically configured.
-         */
-        views: string;
-        /**
-         * The app's routes directories.
-         *
-         * If a value is not provided in `config.routesDir`, the following four values are used:
-         * - `app.dir.mainModule + "/routes"`
-         * - `app.dir.mainModule + "/route"`
-         * - `app.dir.mainModule + "/controllers"`
-         * - `app.dir.mainModule + "/controller"`
-         *
-         * If a directory in `app.dir.routes` does not exist, it is automatically removed from the array.
-         *
-         * If `config.disableRoutes` is `true`, `app.dir.routes` is `[]` and the routing is not automatically configured.
-         */
-        routes: string[];
-    };
+    dir: Directories;
     /**
      * The actual Express.js app.
      */
-    express: import("express-serve-static-core").Express;
+    express: express.Express;
     /**
      * Provides basic `Promise` wrappers around common file system operations, with relatives paths using `app.dir.project` as the base directory.
      *
-     * Refer to https://nodejs.org/docs/latest-v14.x/api/fs.html for more information.
+     * Refer to https://nodejs.org/api/fs.html for more information.
      */
     fileSystem: FileSystem;
     /**
      * Provides basic methods to send and receive data from remote servers.
      */
-    request: {
-        /**
-         * Provides basic methods to send data and receive JSON objects from remote servers.
-         */
-        json: JSONRequest;
-        /**
-         * Provides basic methods to send data and receive strings from remote servers.
-         */
-        string: StringRequest;
-        /**
-         * Provides basic methods to send data and receive raw buffers from remote servers.
-         */
-        buffer: BufferRequest;
-    };
+    request: RequestMethods;
     /**
      * Provides a way to connect to the database, as specified by `config.sqlConfig`, by calling `app.sql.connect()`.
      *
@@ -821,17 +1175,19 @@ declare const app: {
     /**
      * Convenience for accessing multer package.
      *
-     * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
-     *
      * If `config.disableFileUpload` is `true`, `app.multer` will be `null`.
+     *
+     * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
      */
     multer: any;
     /**
      * Creates, configures and starts listening the Express.js app.
      *
      * For more advanced scenarios, such as using WebSockets, it is advisable to set `config.setupOnly = true`, which makes `run()` not to call `expressApp.listen()` at the end of the setup process.
+     *
      * @param config Optional settings used to configure the routes, paths and so on.
      */
-    run: (config?: Config) => void;
-};
+    run(config?: app.Config): void;
+}
+declare const app: App;
 export = app;

@@ -191,7 +191,7 @@ class FileSystem {
             }
         });
     }
-    static renameFile(currentProjectRelativePath, newProjectRelativePath) {
+    static rename(currentProjectRelativePath, newProjectRelativePath) {
         return new Promise((resolve, reject) => {
             try {
                 fs.rename(FileSystem.absolutePath(currentProjectRelativePath), FileSystem.absolutePath(newProjectRelativePath), (err) => {
@@ -221,7 +221,7 @@ class FileSystem {
             }
         });
     }
-    static fileExists(projectRelativePath) {
+    static exists(projectRelativePath) {
         return new Promise((resolve, reject) => {
             try {
                 fs.access(FileSystem.absolutePath(projectRelativePath), fs.constants.F_OK, (err) => {

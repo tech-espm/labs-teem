@@ -23,6 +23,7 @@ export interface SqlInterface {
 
 	/**
 	 * Executes the statement given in `queryStr` and returns the resulting rows (if any).
+	 * 
 	 * @param queryStr The statement to be executed.
 	 * @param values Optional array of values to be used as the arguments of the ? placeholders used in `queryStr`.
 	 */
@@ -30,6 +31,7 @@ export interface SqlInterface {
 
 	/**
 	 * Executes the statement given in `queryStr` and returns the first column of the first resulting row (if any).
+	 * 
 	 * @param queryStr The statement to be executed.
 	 * @param values Optional array of values to be used as the arguments of the ? placeholders used in `queryStr`.
 	 */
