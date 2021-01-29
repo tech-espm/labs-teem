@@ -302,12 +302,12 @@ function createErrorHandler(boundUserHandler) {
 }
 /** @internal */
 function createFileUploadMiddleware(limitFileSize) {
-    if (!cachedFileUploadMiddlewares)
-        cachedFileUploadMiddlewares = {};
+    if (!cachedFileUploadMiddleware)
+        cachedFileUploadMiddleware = {};
     if (!limitFileSize || limitFileSize <= 0)
         limitFileSize = 10485760;
     const limitFileSizeStr = limitFileSize.toString();
-    let middleware = cachedFileUploadMiddlewares[limitFileSizeStr];
+    let middleware = cachedFileUploadMiddleware[limitFileSizeStr];
     if (!middleware) {
         const multerMiddleware = app.multer({
             limits: {
@@ -350,7 +350,7 @@ function createFileUploadMiddleware(limitFileSize) {
                 next();
             });
         };
-        cachedFileUploadMiddlewares[limitFileSizeStr] = middleware;
+        cachedFileUploadMiddleware[limitFileSizeStr] = middleware;
     }
     return middleware;
 }
@@ -369,7 +369,7 @@ function registerRoutes(appExpress, routes) {
         }
     }
 }
-// Private Middlewares
+// Private Middleware
 /** @internal */
 function removeCacheHeader(req, res, next) {
     res.header("Cache-Control", "private, no-cache, no-store, must-revalidate");
@@ -405,7 +405,7 @@ function errorHandlerWithoutCustomHtmlError(err, req, res, next) {
 /** @internal */
 let htmlErrorHandler;
 /** @internal */
-let cachedFileUploadMiddlewares;
+let cachedFileUploadMiddleware;
 /** @internal */
 let jsonBodyParserMiddleware;
 /** @internal */
@@ -440,59 +440,11 @@ const app = {
     localIp: null,
     port: 0,
     dir: {
-        /**
-         * The initial working directory, obtained by calling `process.cwd()` at the beginning of the setup process.
-         */
         initial: null,
-        /**
-         * The directory where the main app's module is located.
-         *
-         * If a value is not provided in `config.mainModuleDir`, the directory of the module calling `app.run()` is used.
-         *
-         * Using `require.main.path` does not work on some cloud providers, because they perform additional requires of their own before actually executing the app's main file (like `app.js`, `server.js` or `index.js`).
-         *
-         * `app.dir.mainModule` is used as `app.dir.routes`'s base directory when `config.routesDir` is not provided.
-         */
         mainModule: null,
-        /**
-         * The app's "project" directory.
-         *
-         * If a value is not provided in `config.projectDir`, `app.dir.initial` is used.
-         *
-         * `app.dir.project` is used as `app.dir.staticFiles`'s and `app.dir.views`'s base directory when `config.staticFilesDir` / `config.viewsDir` are not provided.
-         *
-         * `app.dir.project` is also used as the base directory for all `app.fileSystem` methods.
-         */
         project: null,
-        /**
-         * The app's static files directory.
-         *
-         * If a value is not provided in `config.staticFilesDir`, `app.dir.project + "/public"` is used.
-         *
-         * If `config.disableStaticFiles` is `true`, `app.dir.staticFiles` is `null` and static file handling is not automatically configured.
-         */
         staticFiles: null,
-        /**
-         * The app's views directory.
-         *
-         * If a value is not provided in `config.viewsDir`, `app.dir.project + "/views"` is used.
-         *
-         * If `config.disableViews` is `true`, `app.dir.views` is `null` and the EJS engine is not automatically configured.
-         */
         views: null,
-        /**
-         * The app's routes directories.
-         *
-         * If a value is not provided in `config.routesDir`, the following four values are used:
-         * - `app.dir.mainModule + "/routes"`
-         * - `app.dir.mainModule + "/route"`
-         * - `app.dir.mainModule + "/controllers"`
-         * - `app.dir.mainModule + "/controller"`
-         *
-         * If a directory in `app.dir.routes` does not exist, it is automatically removed from the array.
-         *
-         * If `config.disableRoutes` is `true`, `app.dir.routes` is `[]` and the routing is not automatically configured.
-         */
         routes: null
     },
     express: express(),
@@ -581,9 +533,9 @@ const app = {
         if (config.enableDynamicCompression)
             appExpress.use(require("compression")());
         if (!config.disableBodyParser) {
-            // http://expressjs.com/en/api.html#express.json
-            // http://expressjs.com/en/api.html#express.urlencoded
-            // Instead of globally adding these middlewares, let's add them only to routes that can actually handle a body.
+            // http://expressjs.com/en/4x/api.html#express.json
+            // http://expressjs.com/en/4x/api.html#express.urlencoded
+            // Instead of globally adding these middleware functions, let's add them only to routes that can actually handle a body.
             let bodyParserLimit = parseInt(config.bodyParserLimit);
             if (isNaN(bodyParserLimit) || bodyParserLimit <= 0)
                 bodyParserLimit = 10485760;
@@ -602,7 +554,7 @@ const app = {
                 viewsCacheSize = 200;
             ejs.cache = new LRU(viewsCacheSize);
             appExpress.set("views", viewsDir);
-            // https://www.npmjs.com/package/ejs#layouts
+            // https://www.npmjs.com/package/ejs
             // https://www.npmjs.com/package/express-ejs-layouts
             appExpress.set("view engine", "ejs");
             appExpress.use(require("express-ejs-layouts"));
@@ -652,7 +604,7 @@ const app = {
         else if (config.logRoutesToConsole) {
             console.log("No routes found!");
         }
-        cachedFileUploadMiddlewares = undefined;
+        cachedFileUploadMiddleware = undefined;
         jsonBodyParserMiddleware = undefined;
         urlencodedBodyParserMiddleware = undefined;
         if (config.afterRouteCallback)

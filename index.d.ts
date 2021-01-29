@@ -30,36 +30,408 @@ declare namespace app {
     interface Sql extends SqlInterface {
     }
     interface Config {
+        /**
+         * The root path where this app is located in the actual server, in case the server hosts several apps in a single domain.
+         *
+         * For example, if the app is the only one hosted by the server, and is located at the root path, such as `example.com`, `config.root` should be an empty string `""`.
+         *
+         * On the other hand, if the app is hosted by the server alongside other apps, such as `example.com/app1`, `config.root` should be `"/app1"`.
+         *
+         * If a value is not provided in `config.root`, the empty string `""` is used.
+         *
+         * During the execution of `app.run()`, `config.root` is copied into `app.root`.
+         *
+         * If the value in `config.root` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
+         */
         root?: string;
+        /**
+         * The static root path is the virtual directory where this app's static files are located. This path is concatenated with `app.root` to produce the actual prefix used to locate the files.
+         *
+         * For example, if `config.staticRoot` is `"/public"` and `config.root` is `"/app1"`, `app.staticRoot` will be `"/app1/public"` and it will be assumed that all public static files are located under the virtual path `/app1/public`.
+         *
+         * Assuming there is an image physically located at `/project dir/public/images/avatar.jpg` and that the project is hosted at `example.com`, if `app.staticRoot` is `"/myPublicFiles"`, the image `avatar.jpg` will be accessible from the URL `http://example.com/myPublicFiles/images/avatar.jpg`.
+         * On the other hand, if `app.staticRoot` is an empty string `""`, the image `avatar.jpg` will be accessible from the URL `http://example.com/images/avatar.jpg`.
+         *
+         * `app.staticRoot` is NOT automatically set and its value comes from `config.root` and `config.staticRoot`. If a value is not provided in `config.staticRoot`, `"/public"` is used.
+         *
+         * If the value in `config.staticRoot` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
+         */
         staticRoot?: string;
+        /**
+         * The IP address used when setting up the server.
+         *
+         * If a value is not provided in `config.localIp`, `127.0.0.1` is used.
+         */
         localIp?: string;
+        /**
+         * The TCP port used when setting up the server.
+         *
+         * If a value is not provided in `config.port`, `3000` is used.
+         */
         port?: number;
+        /**
+         * Configuration used to create the connection pool from where all MySQL connections are served when calling `app.sql.connect()`.
+         *
+         * If `config.sqlConfig` is not provided, `app.sql` will be `null`.
+         *
+         * A typical configuration looks like
+         *
+         * ```ts
+         * {
+         *     connectionLimit: 30,
+         *     charset: "utf8mb4",
+         *     host: "ip-or-hostname",
+         *     port: 3306,
+         *     user: "username",
+         *     password: "your-password",
+         *     database: "database-name"
+         * }
+         * ```
+         *
+         * Refer to https://www.npmjs.com/package/mysql#pool-options and https://www.npmjs.com/package/mysql#connection-options for more information on the available options.
+         */
         sqlConfig?: PoolConfig;
+        /**
+         * Enables the compression of all responses produced by routes and middleware functions (static files are not affected by this flag, as they are not compressed by default).
+         *
+         * There are great discussions about using or not compression and about serving static files directly from Node.js/Express.
+         *
+         * Refer to the following links for more information:
+         *
+         * - https://expressjs.com/en/advanced/best-practice-performance.html#use-gzip-compression
+         * - https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
+         * - https://expressjs.com/en/4x/api.html#express.static
+         * - https://nodejs.org/api/zlib.html#zlib_compressing_http_requests_and_responses
+         */
         enableDynamicCompression?: boolean;
+        /**
+         * Disables serving static files directly from the app.
+         *
+         * Static files are served using `express.static()` middleware.
+         *
+         * There are great discussions about serving static files directly from Node.js/Express.
+         *
+         * Refer to the following links for more information:
+         *
+         * - https://expressjs.com/en/starter/static-files.html
+         * - https://expressjs.com/en/4x/api.html#express.static
+         * - https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
+         */
         disableStaticFiles?: boolean;
+        /**
+         * Disables the default view engine (EJS).
+         *
+         * If `config.disableViews` is `true`, `app.dir.views` will be `null` and the EJS engine will not be automatically configured.
+         *
+         * When views are enabled, the package express-ejs-layouts is also automatically enabled to provide template/layout support.
+         *
+         * Refer to the following links for more information:
+         *
+         * - https://www.npmjs.com/package/ejs
+         * - https://www.npmjs.com/package/express-ejs-layouts
+         */
         disableViews?: boolean;
+        /**
+         * Disables automatic route creation.
+         *
+         * If `config.disableRoutes` is `true`, `app.dir.routes` will be `[]` and the routing will not be automatically configured.
+         */
         disableRoutes?: boolean;
+        /**
+         * Disables the cookie-parser middleware.
+         *
+         * Refer to https://www.npmjs.com/package/cookie-parser for more information.
+         */
         disableCookies?: boolean;
+        /**
+         * Disables JSON and urlencoded middleware functions.
+         *
+         * When enabled, they are responsible for parsing JSON and urlencoded payloads of routes marked with any of the following decorators:
+         *
+         * - `@app.http.all()`
+         * - `@app.http.delete()`
+         * - `@app.http.patch()`
+         * - `@app.http.post()`
+         * - `@app.http.put()`
+         *
+         * If the `@app.route.fileUpload()` decorator is used on a route, both JSON and urlencoded middleware functions are ignored, as the multer package takes place.
+         *
+         * Refer to the following links for more information:
+         *
+         * - http://expressjs.com/en/4x/api.html#express.json
+         * - http://expressjs.com/en/4x/api.html#express.urlencoded
+         */
         disableBodyParser?: boolean;
+        /**
+         * Disables the handling of uploaded files.
+         *
+         * When enabled, a route must be marked with the `@app.route.fileUpload()` decorator for the file handling to actually take place.
+         *
+         * File handling is achieved through the multer package.
+         *
+         * Refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
+         */
         disableFileUpload?: boolean;
+        /**
+         * Disables the middleware function that sends a few HTTP headers to prevent caching of all dynamic responses.
+         *
+         * The actual headers sent are:
+         *
+         * ```
+         * Cache-Control: private, no-cache, no-store, must-revalidate
+         * Expires: -1
+         * Pragma: no-cache
+         * ```
+         */
         disableNoCacheHeader?: boolean;
-        projectDir?: string;
+        /**
+         * The directory where the main app's module is located.
+         *
+         * If a value is not provided in `config.mainModuleDir`, the directory of the module calling `app.run()` is used.
+         *
+         * Using `require.main.path` does not work on some cloud providers, because they perform additional requires of their own before actually executing the app's main file (like `app.js`, `server.js` or `index.js`).
+         *
+         * `app.dir.mainModule` is used as `app.dir.routes`'s base directory when `config.routesDir` is not provided.
+         */
         mainModuleDir?: string;
+        /**
+         * The app's "project" directory.
+         *
+         * If a value is not provided in `config.projectDir`, `app.dir.project` will contain the same value as `app.dir.initial`.
+         *
+         * `app.dir.project` is used as `app.dir.staticFiles`'s and `app.dir.views`'s base directory when `config.staticFilesDir` / `config.viewsDir` are not provided.
+         *
+         * `app.dir.project` is also used as the base directory for all `app.fileSystem` methods.
+         */
+        projectDir?: string;
+        /**
+         * The app's static files directory.
+         *
+         * If a value is not provided in `config.staticFilesDir`, `app.dir.project + "/public"` is used.
+         *
+         * If `config.disableStaticFiles` is `true`, `app.dir.staticFiles` will be `null` and static file handling will not be automatically configured, regardless of the value provided in `config.staticFilesDir`.
+         *
+         * There are great discussions about serving static files directly from Node.js/Express.
+         *
+         * Refer to the following links for more information:
+         *
+         * - https://expressjs.com/en/starter/static-files.html
+         * - https://expressjs.com/en/4x/api.html#express.static
+         * - https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
+         */
         staticFilesDir?: string;
+        /**
+         * The app's views directory.
+         *
+         * If a value is not provided in `config.viewsDir`, `app.dir.project + "/views"` is used.
+         *
+         * If `config.disableViews` is `true`, `app.dir.views` will be `null` and the EJS engine will not be automatically configured, regardless of the value provided in `config.viewsDir`.
+         */
         viewsDir?: string;
+        /**
+         * The app's routes directories.
+         *
+         * If a value is not provided in `config.routesDir`, the following four values are used:
+         * - `app.dir.mainModule + "/routes"`
+         * - `app.dir.mainModule + "/route"`
+         * - `app.dir.mainModule + "/controllers"`
+         * - `app.dir.mainModule + "/controller"`
+         *
+         * If a directory in `app.dir.routes` does not exist, it is automatically removed from the array.
+         *
+         * If `config.disableRoutes` is `true`, `app.dir.routes` will be `[]` and the routing will not be automatically configured, regardless of the value provided in `config.routesDir`.
+         */
         routesDir?: string[];
+        /**
+         * Configuration used to create `express.static()` middleware, responsible for serving static files.
+         *
+         * If `config.disableStaticFiles` is `true`, `config.staticFilesConfig` will be ignored.
+         *
+         * When a value is not provided for `config.staticFilesConfig`, the following configuration is used:
+         *
+         * ```ts
+         * {
+         *     cacheControl: true,
+         *     etag: false,
+         *     immutable: true,
+         *     maxAge: "365d"
+         * }
+         * ```
+         *
+         * There are great discussions about serving static files directly from Node.js/Express.
+         *
+         * Refer to the following links for more information:
+         *
+         * - https://expressjs.com/en/starter/static-files.html
+         * - https://expressjs.com/en/4x/api.html#express.static
+         * - https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
+         */
         staticFilesConfig?: ServeStaticOptions;
+        /**
+         * Amount of views to cache in memory, when using the default view engine (EJS).
+         *
+         * If a value is not provided, `200` is used.
+         *
+         * Refer to https://www.npmjs.com/package/ejs#caching for more information.
+         */
         viewsCacheSize?: number;
+        /**
+         * Maximum acceptable payload size used by the JSON and urlencoded middleware functions.
+         *
+         * If a value is not provided, `10485760` is used (10MiB).
+         *
+         * Refer to the following links for more information:
+         *
+         * - http://expressjs.com/en/4x/api.html#express.json
+         * - http://expressjs.com/en/4x/api.html#express.urlencoded
+         */
         bodyParserLimit?: number;
+        /**
+         * Enables logging to the console all routes that were automatically created.
+         *
+         * Useful for debugging purposes.
+         */
         logRoutesToConsole?: boolean;
+        /**
+         * Flag that indicates if class names are to be used, instead of the filename, the generate a route.
+         */
         useClassNamesAsRoutes?: boolean;
+        /**
+         * Forces the internal router to use the `@app.http.all()` decorator for methods without any `app.http` decorators.
+         *
+         * The internal router's default behavior is to use `@app.http.get()` decorator for methods without any `app.http` decorators.
+         *
+         * If `config.allMethodsRoutesHiddenByDefault` is `true`, `config.allMethodsRoutesAllByDefault` will be ignored.
+         */
         allMethodsRoutesAllByDefault?: boolean;
+        /**
+         * Forces the internal router to use the `@app.http.hidden()` decorator for methods without any `app.http` decorators.
+         *
+         * The internal router's default behavior is to use `@app.http.get()` decorator for methods without any `app.http` decorators.
+         *
+         * If `config.allMethodsRoutesHiddenByDefault` is `true`, `config.allMethodsRoutesAllByDefault` will be ignored.
+         */
         allMethodsRoutesHiddenByDefault?: boolean;
+        /**
+         * Callback function that is executed before any middleware functions are registered.
+         *
+         * There are 3 callbacks in `config` and they are executed in the following moments:
+         *
+         * - Initial setup and directory resolution
+         * - config.initCallback()
+         * - Static file and other middleware setup
+         * - config.beforeRouteCallback()
+         * - Route creation/registration
+         * - config.afterRouteCallback()
+         * - app.express.listen()
+         */
         initCallback?: () => void;
+        /**
+         * Callback function that is executed after all middleware functions have been registered, but before any routes are created.
+         *
+         * There are 3 callbacks in `config` and they are executed in the following moments:
+         *
+         * - Initial setup and directory resolution
+         * - config.initCallback()
+         * - Static file and other middleware setup
+         * - config.beforeRouteCallback()
+         * - Route creation/registration
+         * - config.afterRouteCallback()
+         * - app.express.listen()
+         */
         beforeRouteCallback?: () => void;
+        /**
+         * Callback function that is executed after all routes have been created.
+         *
+         * There are 3 callbacks in `config` and they are executed in the following moments:
+         *
+         * - Initial setup and directory resolution
+         * - config.initCallback()
+         * - Static file and other middleware setup
+         * - config.beforeRouteCallback()
+         * - Route creation/registration
+         * - config.afterRouteCallback()
+         * - app.express.listen()
+         */
         afterRouteCallback?: () => void;
+        /**
+         * Function responsible for returning a response to the client in case of errors.
+         *
+         * When `config.errorHandler` is not provided, a JSON string with the error message is returned for requests made to routes containing the string `/api/` or for requests with `application/json` in the `accept` header, or a simple HTML page in other cases.
+         *
+         * The function provided to `config.errorHandler` must have the following signature `(err: any, req: app.Request, res: app.Response, next: app.NextFunction)`.
+         *
+         * For example:
+         *
+         * ```ts
+         * app.run({
+         *     ... // Other options
+         *
+         *     errorHandler: function (err: any, req: app.Request, res: app.Response, next: app.NextFunction) {
+         *         res.render("shared/error", { message: err.message || "Unknown error" });
+         *     }
+         * });
+         * ```
+         */
         errorHandler?: ErrorHandler;
+        /**
+         * Function responsible for returning a response to the client in case of errors.
+         *
+         * When `config.htmlErrorHandler` is not provided, a simple HTML page is returned to the client.
+         *
+         * The function provided to `config.htmlErrorHandler` must have the following signature `(err: any, req: app.Request, res: app.Response, next: app.NextFunction)`.
+         *
+         * Even if a function is provided to `config.htmlErrorHandler`, it is not called for requests made to routes containing the string `/api/` or for requests with `application/json` in the `accept` header.
+         *
+         * If a full error handler is provided in `config.errorHandler`, `config.htmlErrorHandler` is ignored.
+         *
+         * For example:
+         *
+         * ```ts
+         * app.run({
+         *     ... // Other options
+         *
+         *     htmlErrorHandler: function (err: any, req: app.Request, res: app.Response, next: app.NextFunction) {
+         *         res.render("shared/error", { message: err.message || "Unknown error" });
+         *     }
+         * });
+         * ```
+         */
         htmlErrorHandler?: ErrorHandler;
+        /**
+         * Specifies whether `app.express.listen()` is called at the end of the setup process.
+         *
+         * If `config.setupOnly` is set to `true`, `app.run()` will not start the server by calling `app.express.listen()` at the end of the setup process, allowing for more advanced scenarios, such as using WebSockets.
+         *
+         * Do not forget to manually call `app.express.listen()`, or another equivalent method, after calling `app.run()`, in case `config.setupOnly` is set to `true`.
+         *
+         * For example, the code below could be used to integrate the app with Socket.IO:
+         *
+         * ```ts
+         * import app = require("teem");
+         * import http = require("http");
+         * import socketio = require("socket.io");
+         *
+         * app.run({
+         *     ... // Other options
+         *
+         *     setupOnly: true
+         * });
+         *
+         * const server = new http.Server(app.express);
+         * const io = new socketio.Server(server);
+         *
+         * io.on("connection", function (socket: any) {
+         *     console.log("New user connected");
+         * });
+         *
+         * server.listen(app.port, app.localIp, function () {
+         *     console.log(`Server listening on ${app.localIp}:${app.port}`);
+         * });
+         * ```
+         *
+         * Refer to https://socket.io for more information on the Socket.IO framework.
+         */
         setupOnly?: boolean;
     }
 }
@@ -525,7 +897,7 @@ interface RouteDecorators {
      *
      * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
      *
-     * But if the decorator `@app.route.fullClassRoute("/my/custom/route")` were used, as in the example below, method `Order.m1()` would produce the route `/my/custom/route/m1`.
+     * But if the `@app.route.fullClassRoute("/my/custom/route")` decorator were used, as in the example below, method `Order.m1()` would produce the route `/my/custom/route/m1`.
      *
      * ```ts
      * '@'app.route.fullClassRoute("/my/custom/route")
@@ -562,7 +934,7 @@ interface RouteDecorators {
      *
      * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
      *
-     * But if the decorator `@app.route.fullMethodRoute("/my/custom/method/route")` were used, as in the example below, method `Order.m1()` would produce the route `/my/custom/method/route`.
+     * But if the `@app.route.fullMethodRoute("/my/custom/method/route")` decorator were used, as in the example below, method `Order.m1()` would produce the route `/my/custom/method/route`.
      *
      * ```ts
      * class Order {
@@ -599,7 +971,7 @@ interface RouteDecorators {
      *
      * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
      *
-     * But if the decorator `@app.route.className("newName")` were used, as in the example below, method `Order.m1()` would produce the route `/api/sales/newName/m1` (ignoring the setting `config.useClassNamesAsRoutes`).
+     * But if the `@app.route.className("newName")` decorator were used, as in the example below, method `Order.m1()` would produce the route `/api/sales/newName/m1` (ignoring the setting `config.useClassNamesAsRoutes`).
      *
      * ```ts
      * '@'app.route.className("newName")
@@ -612,7 +984,7 @@ interface RouteDecorators {
      *
      * The @ character MUST NOT be placed between '' in the actual code.
      *
-     * The decorator `@app.route.fullClassRoute` overrides this one.
+     * The `@app.route.fullClassRoute` decorator overrides this one.
      *
      * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
      *
@@ -638,7 +1010,7 @@ interface RouteDecorators {
      *
      * By default, method `Order.m1()` produces the route `/api/sales/order/m1` (or `/api/sales/Order/m1` if the setting `config.useClassNamesAsRoutes` is `true`).
      *
-     * But if the decorator `@app.route.methodName("myMethod")` were used, as in the example below, method `Order.m1()` would produce the route `/api/sales/order/myMethod` (or `/api/sales/Order/myMethod` if the setting `config.useClassNamesAsRoutes` is `true` or `xxx/myMethod` if either decorator `@app.route.fullClassRoute()` or decorator `@app.route.className()` is used on class `Order`).
+     * But if the `@app.route.methodName("myMethod")` decorator were used, as in the example below, method `Order.m1()` would produce the route `/api/sales/order/myMethod` (or `/api/sales/Order/myMethod` if the setting `config.useClassNamesAsRoutes` is `true` or `xxx/myMethod` if either `@app.route.fullClassRoute()` or  `@app.route.className()` decorator is used on class `Order`).
      *
      * ```ts
      * class Order {
@@ -651,7 +1023,7 @@ interface RouteDecorators {
      *
      * The @ character MUST NOT be placed between '' in the actual code.
      *
-     * The decorator `@app.route.fullMethodRoute` overrides this one.
+     * The `@app.route.fullMethodRoute` decorator overrides this one.
      *
      * Express.js's route parameters can be used (refer to http://expressjs.com/en/guide/routing.html for more information on that).
      *
@@ -661,7 +1033,7 @@ interface RouteDecorators {
      */
     methodName(routeMethodName: string): MethodDecorator;
     /**
-     * Specifies one or more middlewares to be used with the method's route.
+     * Specifies one or more middleware functions to be used with the method's route.
      *
      * For example, to add a single middleware:
      *
@@ -674,7 +1046,7 @@ interface RouteDecorators {
      * }
      * ```
      *
-     * When adding two or more middlewares, they will be executed in the same order they were passed:
+     * When adding two or more middleware functions, they will be executed in the same order they were passed:
      *
      * ```ts
      * class Order {
@@ -687,9 +1059,9 @@ interface RouteDecorators {
      *
      * The @ character MUST NOT be placed between '' in the actual code.
      *
-     * Refer to https://expressjs.com/en/guide/using-middleware.html for more information on middlewares.
+     * Refer to https://expressjs.com/en/guide/using-middleware.html for more information on middleware.
      *
-     * @param middleware One or more middlewares to be used with the method's route.
+     * @param middleware One or more middleware functions to be used with the method's route.
      */
     middleware(...middleware: any[]): MethodDecorator;
     /**
@@ -831,13 +1203,13 @@ interface RouteDecorators {
      *
      * For convenience, multer can be accessed through `app.multer` without the need for requiring it.
      *
-     * If `config.disableFileUpload` is `true`, though, `app.multer` is `null` and the decorator `@app.route.fileUpload()` cannot be used.
+     * If `config.disableFileUpload` is `true`, though, `app.multer` will be `null` and it will not be possible to use the `@app.route.fileUpload()` decorator.
      *
-     * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
+     * Refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
      *
      * The @ character MUST NOT be placed between '' in the actual code.
      *
-     * @param middleware One or more middlewares to be used with the method's route.
+     * @param limitFileSize Maximum acceptable file size in bytes (10MiB, or 10485760 bytes, is used if no other value is provided).
      */
     fileUpload(limitFileSize?: number): MethodDecorator;
 }
@@ -1030,7 +1402,7 @@ interface Directories {
     /**
      * The app's "project" directory.
      *
-     * If a value is not provided in `config.projectDir`, `app.dir.initial` is used.
+     * If a value is not provided in `config.projectDir`, `app.dir.project` will contain the same value as `app.dir.initial`.
      *
      * `app.dir.project` is used as `app.dir.staticFiles`'s and `app.dir.views`'s base directory when `config.staticFilesDir` / `config.viewsDir` are not provided.
      *
@@ -1042,7 +1414,7 @@ interface Directories {
      *
      * If a value is not provided in `config.staticFilesDir`, `app.dir.project + "/public"` is used.
      *
-     * If `config.disableStaticFiles` is `true`, `app.dir.staticFiles` is `null` and static file handling is not automatically configured.
+     * If `config.disableStaticFiles` is `true`, `app.dir.staticFiles` will be `null` and static file handling will not be automatically configured, regardless of the value provided in `config.staticFilesDir`.
      */
     staticFiles: string;
     /**
@@ -1050,7 +1422,7 @@ interface Directories {
      *
      * If a value is not provided in `config.viewsDir`, `app.dir.project + "/views"` is used.
      *
-     * If `config.disableViews` is `true`, `app.dir.views` is `null` and the EJS engine is not automatically configured.
+     * If `config.disableViews` is `true`, `app.dir.views` will be `null` and the EJS engine will not be automatically configured, regardless of the value provided in `config.viewsDir`.
      */
     views: string;
     /**
@@ -1064,7 +1436,7 @@ interface Directories {
      *
      * If a directory in `app.dir.routes` does not exist, it is automatically removed from the array.
      *
-     * If `config.disableRoutes` is `true`, `app.dir.routes` is `[]` and the routing is not automatically configured.
+     * If `config.disableRoutes` is `true`, `app.dir.routes` will be `[]` and the routing will not be automatically configured.
      */
     routes: string[];
 }
@@ -1106,7 +1478,7 @@ interface App {
     /**
      * The root path where this app is located in the actual server, in case the server hosts several apps in a single domain.
      *
-     * For example, if the app is the only one hosted by the server, and is located at the root URL, such as `example.com`, `app.root` is an empty string `""`.
+     * For example, if the app is the only one hosted by the server, and is located at the root path, such as `example.com`, `app.root` is an empty string `""`.
      *
      * If the app is hosted by the server alongside other apps, such as `example.com/app1`, `app.root` is `"/app1"`.
      *
@@ -1177,13 +1549,42 @@ interface App {
      *
      * If `config.disableFileUpload` is `true`, `app.multer` will be `null`.
      *
-     * Please, refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
+     * Refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
      */
     multer: any;
     /**
      * Creates, configures and starts listening the Express.js app.
      *
-     * For more advanced scenarios, such as using WebSockets, it is advisable to set `config.setupOnly = true`, which makes `run()` not to call `expressApp.listen()` at the end of the setup process.
+     * For more advanced scenarios, such as using WebSockets, it is advisable to set `config.setupOnly` to `true`, which makes `app.run()` not to call `app.express.listen()` at the end of the setup process.
+     *
+     * Do not forget to manually call `app.express.listen()`, or another equivalent method, after calling `app.run()`, in case `config.setupOnly` is set to `true`.
+     *
+     * For example, the code below could be used to integrate the app with Socket.IO:
+     *
+     * ```ts
+     * import app = require("teem");
+     * import http = require("http");
+     * import socketio = require("socket.io");
+     *
+     * app.run({
+     *     ... // Other options
+     *
+     *     setupOnly: true
+     * });
+     *
+     * const server = new http.Server(app.express);
+     * const io = new socketio.Server(server);
+     *
+     * io.on("connection", function (socket: any) {
+     *     console.log("New user connected");
+     * });
+     *
+     * server.listen(app.port, app.localIp, function () {
+     *     console.log(`Server listening on ${app.localIp}:${app.port}`);
+     * });
+     * ```
+     *
+     * Refer to https://socket.io for more information on the Socket.IO framework.
      *
      * @param config Optional settings used to configure the routes, paths and so on.
      */
