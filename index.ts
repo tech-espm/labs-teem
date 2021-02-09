@@ -60,7 +60,7 @@ namespace app {
 		 * 
 		 * If the value in `config.root` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
 		 */
-		root?: string;
+		root?: string | null;
 
 		/**
 		 * The static root path is the virtual directory where this app's static files are located. This path is concatenated with `app.root` to produce the actual prefix used to locate the files.
@@ -74,21 +74,21 @@ namespace app {
 		 * 
 		 * If the value in `config.staticRoot` is anything other than the empty string `""`, it is adjusted so that it always starts with a `/` character, and never ends with with a `/` character.
 		 */
-		staticRoot?: string;
+		staticRoot?: string | null;
 
 		/**
 		 * The IP address used when setting up the server.
 		 * 
 		 * If a value is not provided in `config.localIp`, `127.0.0.1` is used.
 		 */
-		localIp?: string;
+		localIp?: string | null;
 
 		/**
 		 * The TCP port used when setting up the server.
 		 * 
 		 * If a value is not provided in `config.port`, `3000` is used.
 		 */
-		port?: number;
+		port?: number | null;
 
 		/**
 		 * Configuration used to create the connection pool from where all MySQL connections are served when calling `app.sql.connect()`.
@@ -111,7 +111,7 @@ namespace app {
 		 * 
 		 * Refer to https://www.npmjs.com/package/mysql#pool-options and https://www.npmjs.com/package/mysql#connection-options for more information on the available options.
 		 */
-		sqlConfig?: PoolConfig;
+		sqlConfig?: PoolConfig | null;
 
 		/**
 		 * Enables the compression of all responses produced by routes and middleware functions (static files are not affected by this flag, as they are not compressed by default).
@@ -125,7 +125,7 @@ namespace app {
 		 * - https://expressjs.com/en/4x/api.html#express.static
 		 * - https://nodejs.org/api/zlib.html#zlib_compressing_http_requests_and_responses
 		 */
-		enableDynamicCompression?: boolean;
+		enableDynamicCompression?: boolean | null;
 
 		/**
 		 * Disables serving static files directly from the app.
@@ -140,7 +140,7 @@ namespace app {
 		 * - https://expressjs.com/en/4x/api.html#express.static
 		 * - https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
 		 */
-		disableStaticFiles?: boolean;
+		disableStaticFiles?: boolean | null;
 
 		/**
 		 * Disables the default view engine (EJS).
@@ -154,21 +154,21 @@ namespace app {
 		 * - https://www.npmjs.com/package/ejs
 		 * - https://www.npmjs.com/package/express-ejs-layouts
 		 */
-		disableViews?: boolean;
+		disableViews?: boolean | null;
 
 		/**
 		 * Disables automatic route creation.
 		 * 
 		 * If `config.disableRoutes` is `true`, `app.dir.routes` will be `[]` and the routing will not be automatically configured.
 		 */
-		disableRoutes?: boolean;
+		disableRoutes?: boolean | null;
 
 		/**
 		 * Disables the cookie-parser middleware.
 		 * 
 		 * Refer to https://www.npmjs.com/package/cookie-parser for more information.
 		 */
-		disableCookies?: boolean;
+		disableCookies?: boolean | null;
 
 		/**
 		 * Disables JSON and urlencoded middleware functions.
@@ -188,7 +188,7 @@ namespace app {
 		 * - http://expressjs.com/en/4x/api.html#express.json
 		 * - http://expressjs.com/en/4x/api.html#express.urlencoded
 		 */
-		disableBodyParser?: boolean;
+		disableBodyParser?: boolean | null;
 
 		/**
 		 * Disables the handling of uploaded files.
@@ -199,7 +199,7 @@ namespace app {
 		 * 
 		 * Refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
 		 */
-		disableFileUpload?: boolean;
+		disableFileUpload?: boolean | null;
 
 		/**
 		 * Disables the middleware function that sends a few HTTP headers to prevent caching of all dynamic responses.
@@ -212,7 +212,7 @@ namespace app {
 		 * Pragma: no-cache
 		 * ```
 		 */
-		disableNoCacheHeader?: boolean;
+		disableNoCacheHeader?: boolean | null;
 
 		/**
 		 * The directory where the main app's module is located.
@@ -223,7 +223,7 @@ namespace app {
 		 * 
 		 * `app.dir.mainModule` is used as `app.dir.routes`'s base directory when `config.routesDir` is not provided.
 		 */
-		mainModuleDir?: string;
+		mainModuleDir?: string | null;
 
 		/**
 		 * The app's "project" directory.
@@ -234,7 +234,7 @@ namespace app {
 		 * 
 		 * `app.dir.project` is also used as the base directory for all `app.fileSystem` methods.
 		 */
-		projectDir?: string;
+		projectDir?: string | null;
 
 		/**
 		 * The app's static files directory.
@@ -251,7 +251,7 @@ namespace app {
 		 * - https://expressjs.com/en/4x/api.html#express.static
 		 * - https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
 		 */
-		staticFilesDir?: string;
+		staticFilesDir?: string | null;
 
 		/**
 		 * The app's views directory.
@@ -260,7 +260,7 @@ namespace app {
 		 * 
 		 * If `config.disableViews` is `true`, `app.dir.views` will be `null` and the EJS engine will not be automatically configured, regardless of the value provided in `config.viewsDir`.
 		 */
-		viewsDir?: string;
+		viewsDir?: string | null;
 
 		/**
 		 * The app's routes directories.
@@ -275,7 +275,7 @@ namespace app {
 		 * 
 		 * If `config.disableRoutes` is `true`, `app.dir.routes` will be `[]` and the routing will not be automatically configured, regardless of the value provided in `config.routesDir`.
 		 */
-		routesDir?: string[];
+		routesDir?: string[] | null;
 
 		/**
 		 * Configuration used to create `express.static()` middleware, responsible for serving static files.
@@ -301,7 +301,7 @@ namespace app {
 		 * - https://expressjs.com/en/4x/api.html#express.static
 		 * - https://expressjs.com/en/advanced/best-practice-performance.html#use-a-reverse-proxy
 		 */
-		staticFilesConfig?: ServeStaticOptions;
+		staticFilesConfig?: ServeStaticOptions | null;
 
 		/**
 		 * Amount of views to cache in memory, when using the default view engine (EJS).
@@ -310,7 +310,7 @@ namespace app {
 		 * 
 		 * Refer to https://www.npmjs.com/package/ejs#caching for more information.
 		 */
-		viewsCacheSize?: number;
+		viewsCacheSize?: number | null;
 
 		/**
 		 * Maximum acceptable payload size used by the JSON and urlencoded middleware functions.
@@ -322,19 +322,19 @@ namespace app {
 		 * - http://expressjs.com/en/4x/api.html#express.json
 		 * - http://expressjs.com/en/4x/api.html#express.urlencoded
 		 */
-		bodyParserLimit?: number;
+		bodyParserLimit?: number | null;
 
 		/**
 		 * Enables logging to the console all routes that were automatically created.
 		 * 
 		 * Useful for debugging purposes.
 		 */
-		logRoutesToConsole?: boolean;
+		logRoutesToConsole?: boolean | null;
 
 		/**
 		 * Flag that indicates if class names are to be used, instead of the filename, the generate a route.
 		 */
-		useClassNamesAsRoutes?: boolean;
+		useClassNamesAsRoutes?: boolean | null;
 
 		/**
 		 * Forces the internal router to use the `@app.http.all()` decorator for methods without any `app.http` decorators.
@@ -343,7 +343,7 @@ namespace app {
 		 * 
 		 * If `config.allMethodsRoutesHiddenByDefault` is `true`, `config.allMethodsRoutesAllByDefault` will be ignored.
 		 */
-		allMethodsRoutesAllByDefault?: boolean;
+		allMethodsRoutesAllByDefault?: boolean | null;
 
 		/**
 		 * Forces the internal router to use the `@app.http.hidden()` decorator for methods without any `app.http` decorators.
@@ -352,52 +352,106 @@ namespace app {
 		 * 
 		 * If `config.allMethodsRoutesHiddenByDefault` is `true`, `config.allMethodsRoutesAllByDefault` will be ignored.
 		 */
-		allMethodsRoutesHiddenByDefault?: boolean;
+		allMethodsRoutesHiddenByDefault?: boolean | null;
 
 		/**
-		 * Callback function that is executed before any middleware functions are registered.
+		 * Function that is executed before any middleware functions are registered.
 		 * 
-		 * There are 3 callbacks in `config` and they are executed in the following moments:
+		 * There are 4 callbacks in `config` and they are executed in the following moments:
 		 * 
-		 * - Initial setup and directory resolution
-		 * - config.initCallback()
-		 * - Static file and other middleware setup
-		 * - config.beforeRouteCallback()
-		 * - Route creation/registration
-		 * - config.afterRouteCallback()
-		 * - app.express.listen()
+		 * - [Initial setup and directory resolution]
+		 * - config.onInit()
+		 * - [Static file and other middleware setup]
+		 * - config.onBeforeRoute()
+		 * - [Route creation/registration]
+		 * - config.onAfterRoute()
+		 * - config.onFinish()
+		 * 
+		 * When `config.onFinish` is not provided, `app.express.listen()` is called instead.
 		 */
-		initCallback?: () => void;
+		onInit?: (() => Promise<void> | void) | null;
 
 		/**
-		 * Callback function that is executed after all middleware functions have been registered, but before any routes are created.
+		 * Function that is executed after all middleware functions have been registered, but before any routes are created.
 		 * 
-		 * There are 3 callbacks in `config` and they are executed in the following moments:
+		 * There are 4 callbacks in `config` and they are executed in the following moments:
 		 * 
-		 * - Initial setup and directory resolution
-		 * - config.initCallback()
-		 * - Static file and other middleware setup
-		 * - config.beforeRouteCallback()
-		 * - Route creation/registration
-		 * - config.afterRouteCallback()
-		 * - app.express.listen()
+		 * - [Initial setup and directory resolution]
+		 * - config.onInit()
+		 * - [Static file and other middleware setup]
+		 * - config.onBeforeRoute()
+		 * - [Route creation/registration]
+		 * - config.onAfterRoute()
+		 * - config.onFinish()
+		 * 
+		 * When `config.onFinish` is not provided, `app.express.listen()` is called instead.
 		 */
-		beforeRouteCallback?: () => void;
+		onBeforeRoute?: (() => Promise<void> | void) | null;
 
 		/**
-		 * Callback function that is executed after all routes have been created.
+		 * Function that is executed after all routes have been created.
 		 * 
-		 * There are 3 callbacks in `config` and they are executed in the following moments:
+		 * There are 4 callbacks in `config` and they are executed in the following moments:
 		 * 
-		 * - Initial setup and directory resolution
-		 * - config.initCallback()
-		 * - Static file and other middleware setup
-		 * - config.beforeRouteCallback()
-		 * - Route creation/registration
-		 * - config.afterRouteCallback()
-		 * - app.express.listen()
+		 * - [Initial setup and directory resolution]
+		 * - config.onInit()
+		 * - [Static file and other middleware setup]
+		 * - config.onBeforeRoute()
+		 * - [Route creation/registration]
+		 * - config.onAfterRoute()
+		 * - config.onFinish()
+		 * 
+		 * When `config.onFinish` is not provided, `app.express.listen()` is called instead.
 		 */
-		afterRouteCallback?: () => void;
+		onAfterRoute?: (() => Promise<void> | void) | null;
+
+		/**
+		 * Function that is executed at the end of the setup process.
+		 * 
+		 * There are 4 callbacks in `config` and they are executed in the following moments:
+		 * 
+		 * - [Initial setup and directory resolution]
+		 * - config.onInit()
+		 * - [Static file and other middleware setup]
+		 * - config.onBeforeRoute()
+		 * - [Route creation/registration]
+		 * - config.onAfterRoute()
+		 * - config.onFinish()
+		 * 
+		 * When `config.onFinish` is not provided, `app.express.listen()` is called instead.
+		 * 
+		 * Providing a function to `config.onFinish` causes `app.run()` will not start the server by calling `app.express.listen()` at the end of the setup process, allowing for more advanced scenarios, such as using WebSockets.
+		 * 
+		 * Do not forget to manually call `app.express.listen()`, or another equivalent method, inside `config.onFinish`.
+		 * 
+		 * For example, the code below could be used to integrate the app with Socket.IO:
+		 * 
+		 * ```ts
+		 * import app = require("teem");
+		 * import http = require("http");
+		 * import socketio = require("socket.io");
+		 * 
+		 * app.run({
+		 *     ... // Other options
+		 * 
+		 *     onFinish: function () {
+		 *         const server = new http.Server(app.express);
+		 *         const io = new socketio.Server(server);
+		 * 
+		 *         io.on("connection", function (socket: any) {
+		 *             console.log("New user connected");
+		 *         });
+		 * 
+		 *         server.listen(app.port, app.localIp, function () {
+		 *             console.log(`Server listening on ${app.localIp}:${app.port}`);
+		 *         });
+		 *     }
+		 * });
+		 * ```
+		 * 
+		 * Refer to https://socket.io for more information on the Socket.IO framework.
+		 */
+		onFinish?: (() => Promise<void> | void) | null;
 
 		/**
 		 * Function responsible for returning a response to the client in case of errors.
@@ -418,7 +472,7 @@ namespace app {
 		 * });
 		 * ```
 		 */
-		errorHandler?: ErrorHandler;
+		errorHandler?: ErrorHandler | null;
 
 		/**
 		 * Function responsible for returning a response to the client in case of errors.
@@ -443,43 +497,7 @@ namespace app {
 		 * });
 		 * ```
 		 */
-		htmlErrorHandler?: ErrorHandler;
-
-		/**
-		 * Specifies whether `app.express.listen()` is called at the end of the setup process.
-		 * 
-		 * If `config.setupOnly` is set to `true`, `app.run()` will not start the server by calling `app.express.listen()` at the end of the setup process, allowing for more advanced scenarios, such as using WebSockets.
-		 * 
-		 * Do not forget to manually call `app.express.listen()`, or another equivalent method, after calling `app.run()`, in case `config.setupOnly` is set to `true`.
-		 * 
-		 * For example, the code below could be used to integrate the app with Socket.IO:
-		 * 
-		 * ```ts
-		 * import app = require("teem");
-		 * import http = require("http");
-		 * import socketio = require("socket.io");
-		 * 
-		 * app.run({
-		 *     ... // Other options
-		 * 
-		 *     setupOnly: true
-		 * });
-		 * 
-		 * const server = new http.Server(app.express);
-		 * const io = new socketio.Server(server);
-		 * 
-		 * io.on("connection", function (socket: any) {
-		 *     console.log("New user connected");
-		 * });
-		 * 
-		 * server.listen(app.port, app.localIp, function () {
-		 *     console.log(`Server listening on ${app.localIp}:${app.port}`);
-		 * });
-		 * ```
-		 * 
-		 * Refer to https://socket.io for more information on the Socket.IO framework.
-		 */
-		setupOnly?: boolean;
+		htmlErrorHandler?: ErrorHandler | null;
 	}
 }
 
@@ -1675,9 +1693,9 @@ interface App {
 	/**
 	 * Creates, configures and starts listening the Express.js app.
 	 * 
-	 * For more advanced scenarios, such as using WebSockets, it is advisable to set `config.setupOnly` to `true`, which makes `app.run()` not to call `app.express.listen()` at the end of the setup process.
+	 * For more advanced scenarios, such as using WebSockets, it is advisable to provide a function to `config.onFinish`, which makes `app.run()` not to call `app.express.listen()` at the end of the setup process.
 	 * 
-	 * Do not forget to manually call `app.express.listen()`, or another equivalent method, after calling `app.run()`, in case `config.setupOnly` is set to `true`.
+	 * Do not forget to manually call `app.express.listen()`, or another equivalent method, inside `config.onFinish`.
 	 * 
 	 * For example, the code below could be used to integrate the app with Socket.IO:
 	 * 
@@ -1689,18 +1707,18 @@ interface App {
 	 * app.run({
 	 *     ... // Other options
 	 * 
-	 *     setupOnly: true
-	 * });
+	 *     onFinish: function () {
+	 *         const server = new http.Server(app.express);
+	 *         const io = new socketio.Server(server);
 	 * 
-	 * const server = new http.Server(app.express);
-	 * const io = new socketio.Server(server);
+	 *         io.on("connection", function (socket: any) {
+	 *             console.log("New user connected");
+	 *         });
 	 * 
-	 * io.on("connection", function (socket: any) {
-	 *     console.log("New user connected");
-	 * });
-	 * 
-	 * server.listen(app.port, app.localIp, function () {
-	 *     console.log(`Server listening on ${app.localIp}:${app.port}`);
+	 *         server.listen(app.port, app.localIp, function () {
+	 *             console.log(`Server listening on ${app.localIp}:${app.port}`);
+	 *         });
+	 *     }
 	 * });
 	 * ```
 	 * 
@@ -1708,10 +1726,17 @@ interface App {
 	 * 
 	 * @param config Optional settings used to configure the routes, paths and so on.
 	 */
-	run(config?: app.Config): void;
+	run(config?: app.Config): Promise<void>;
 }
 
 // Private Interfaces and Functions
+
+/** @internal */
+interface Importer {
+	sep: string;
+	cleanUp(): void;
+	importFile(absolutePath: string): Promise<any>;
+}
 
 /** @internal */
 interface ValidHttpMethods {
@@ -1728,13 +1753,13 @@ interface InternalRoute {
 	absolutePath: string;
 	route: string;
 	httpMethod: string;
-	routeMiddleware: any[];
+	routeMiddleware: any[] | null;
 	boundUserHandler: Function;
 }
 
 /** @internal */
 function httpGeneric(method: string): MethodDecorator {
-	return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+	return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) {
 		const f = (target[propertyKey] || target);
 		if (!f["httpMethods"])
 			f["httpMethods"] = [];
@@ -1754,7 +1779,18 @@ function extractCallingFile(): string {
 	const stack = ((new Error()).stack as any) as NodeJS.CallSite[];
 	Error.prepareStackTrace = prepareStackTrace;
 	// Try to skip the call to this function and to the function that called this one.
-	return stack[Math.min(stack.length, 3) - 1].getFileName();
+	let fileName = stack[Math.min(stack.length, 3) - 1].getFileName() || "";
+	if (fileName.startsWith("file://")) {
+		fileName = decodeURI(fileName.substr(7));
+		if (path.sep === "\\") {
+			// Windows
+			fileName = fileName.replace("|", ":");
+			if (fileName.charAt(0) === "/")
+				fileName = fileName.substr(1);
+			fileName = fileName.replace(/\//g, "\\");
+		}
+	}
+	return fileName;
 }
 
 /** @internal */
@@ -1767,12 +1803,12 @@ function extractRoutesFromObject(config: app.Config, validHttpMethods: ValidHttp
 		if (!n || n === "constructor")
 			continue;
 
-		const f = obj[n] as Function;
+		const f = obj[n];
 		if (f && (typeof f) === "function") {
 			let fullMethodRoute = f["routeFullMethodRoute"] as string,
 				routeMethodName = f["routeMethodName"] as string,
 				routeMiddleware = f["routeMiddleware"] as any[],
-				routeMiddlewareWithBody: any[] = null,
+				routeMiddlewareWithBody: any[] | null = null,
 				httpMethods = f["httpMethods"] as string[];
 			const httpHidden = f["httpHidden"],
 				routeFileUpload = parseInt(f["routeFileUpload"]);
@@ -1936,8 +1972,8 @@ function extractRoutesFromFunctionOrObject(config: app.Config, validHttpMethods:
 }
 
 /** @internal */
-function extractRoutesFromFile(config: app.Config, validHttpMethods: ValidHttpMethods, prefix: string, routes: InternalRoute[], absolutePath: string, name: string): void {
-	const r = require(absolutePath);
+async function extractRoutesFromFile(config: app.Config, validHttpMethods: ValidHttpMethods, prefix: string, routes: InternalRoute[], importer: Importer, absolutePath: string, name: string): Promise<void> {
+	const r = await importer.importFile(absolutePath);
 	if (!r)
 		throw new Error(`File ${absolutePath} does not export a valid object/class/function`);
 
@@ -1965,17 +2001,18 @@ function extractRoutesFromFile(config: app.Config, validHttpMethods: ValidHttpMe
 }
 
 /** @internal */
-function extractRoutesFromDir(config: app.Config, validHttpMethods: ValidHttpMethods, prefix: string, routes: InternalRoute[], dir: string): void {
+async function extractRoutesFromDir(config: app.Config, validHttpMethods: ValidHttpMethods, prefix: string, routes: InternalRoute[], importer: Importer, dir: string): Promise<void> {
 	const names = fs.readdirSync(dir);
 
 	if (!names)
 		return;
 
 	for (let i = names.length - 1; i >= 0; i--) {
-		const name = names[i];
+		const name = names[i],
+			lcaseName = name.toLowerCase();
 		let absolutePath: string;
-		if (name.toLowerCase().endsWith(".js") && !fs.statSync(absolutePath = path.join(dir, name)).isDirectory()) {
-			extractRoutesFromFile(config, validHttpMethods, prefix, routes, absolutePath, name.substr(0, name.length - 3));
+		if ((lcaseName.endsWith(".js") || lcaseName.endsWith(".cjs") || lcaseName.endsWith(".mjs")) && !fs.statSync(absolutePath = path.join(dir, name)).isDirectory()) {
+			await extractRoutesFromFile(config, validHttpMethods, prefix, routes, importer, absolutePath, name.substr(0, name.length - 3));
 			names.splice(i, 1);
 		}
 	}
@@ -1983,7 +2020,7 @@ function extractRoutesFromDir(config: app.Config, validHttpMethods: ValidHttpMet
 	for (let i = names.length - 1; i >= 0; i--) {
 		const name = names[i], absolutePath = path.join(dir, name);
 		if (fs.statSync(absolutePath).isDirectory())
-			extractRoutesFromDir(config, validHttpMethods, prefix + name + "/", routes, absolutePath);
+			await extractRoutesFromDir(config, validHttpMethods, prefix + name + "/", routes, importer, absolutePath);
 	}
 }
 
@@ -2082,16 +2119,16 @@ function createFileUploadMiddleware(limitFileSize?: number): Function {
 		}).any();
 
 		middleware = function (req: app.Request, res: app.Response, next: app.NextFunction): void {
-			multerMiddleware(req, res, (err: any) => {
+			multerMiddleware(req, res, function (err: any) {
 				const uploadedFiles: app.UploadedFiles = {},
-					uploadedFilesArray = (req["files"] as app.UploadedFile[] || []);
+					uploadedFilesArray = ((req as any).files || []) as app.UploadedFile[];
 
 				req.uploadedFiles = uploadedFiles;
 				req.uploadedFilesArray = uploadedFilesArray;
 
 				for (let i = uploadedFilesArray.length - 1; i >= 0; i--) {
 					const uploadedFile = uploadedFilesArray[i];
-					if (!uploadedFiles[uploadedFile.fieldname])
+					if (uploadedFile.fieldname && !uploadedFiles[uploadedFile.fieldname])
 						uploadedFiles[uploadedFile.fieldname] = uploadedFile;
 				}
 
@@ -2108,7 +2145,7 @@ function createFileUploadMiddleware(limitFileSize?: number): Function {
 							errormessage: (err.message || "Unknown error")
 						};
 
-						if (!uploadedFiles[uploadedFile.fieldname])
+						if (uploadedFile.fieldname && !uploadedFiles[uploadedFile.fieldname])
 							uploadedFiles[uploadedFile.fieldname] = uploadedFile;
 						uploadedFilesArray.push(uploadedFile);
 					} else {
@@ -2130,18 +2167,21 @@ function createFileUploadMiddleware(limitFileSize?: number): Function {
 /** @internal */
 function registerRoutes(appExpress: express.Express, routes: InternalRoute[]): void {
 	for (let i = 0; i < routes.length; i++) {
-		const route = routes[i];
+		const route = routes[i],
+			m = (appExpress as any)[route.httpMethod] as Function;
+
+		if (!m)
+			throw new Error("Invalid HTTP method: " + route.httpMethod);
 
 		if (route.routeMiddleware && route.routeMiddleware.length) {
-			const m = appExpress[route.httpMethod],
-				args = [route.route] as any[];
+			const args = [route.route] as any[];
 
 			args.push.apply(args, route.routeMiddleware);
 			args.push(createRegularHandler(route.boundUserHandler));
 
 			m.apply(appExpress, args);
 		} else {
-			appExpress[route.httpMethod](route.route, createRegularHandler(route.boundUserHandler));
+			m.call(appExpress, route.route, createRegularHandler(route.boundUserHandler));
 		}
 	}
 }
@@ -2202,12 +2242,12 @@ const app: App = {
 	// Route Decorators
 
 	route: {
-		fullClassRoute: function (routeFullClassRoute: string): ClassDecorator { return function (constructor: Function) { constructor["routeFullClassRoute"] = routeFullClassRoute; }; },
-		fullMethodRoute: function (routeFullMethodRoute: string): MethodDecorator { return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) { (target[propertyKey] || target)["routeFullMethodRoute"] = routeFullMethodRoute; }; },
-		className: function (routeClassName: string): ClassDecorator { return function (constructor: Function) { constructor["routeClassName"] = routeClassName; }; },
-		methodName: function (routeMethodName: string): MethodDecorator { return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) { (target[propertyKey] || target)["routeMethodName"] = routeMethodName; }; },
-		middleware: function (...middleware: any[]): MethodDecorator { return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"]) f["routeMiddleware"] = []; if (middleware) f["routeMiddleware"].push.apply(f["routeMiddleware"], middleware); }; },
-		fileUpload: function (limitFileSize?: number): MethodDecorator { return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"]) f["routeMiddleware"] = []; f["routeMiddleware"].push(createFileUploadMiddleware(parseInt(limitFileSize as any))); f["routeFileUpload"] = true; }; }
+		fullClassRoute: function (routeFullClassRoute: string): ClassDecorator { return function (constructor: Function) { (constructor as any)["routeFullClassRoute"] = routeFullClassRoute; }; },
+		fullMethodRoute: function (routeFullMethodRoute: string): MethodDecorator { return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) { (target[propertyKey] || target)["routeFullMethodRoute"] = routeFullMethodRoute; }; },
+		className: function (routeClassName: string): ClassDecorator { return function (constructor: Function) { (constructor as any)["routeClassName"] = routeClassName; }; },
+		methodName: function (routeMethodName: string): MethodDecorator { return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) { (target[propertyKey] || target)["routeMethodName"] = routeMethodName; }; },
+		middleware: function (...middleware: any[]): MethodDecorator { return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"]) f["routeMiddleware"] = []; if (middleware) f["routeMiddleware"].push.apply(f["routeMiddleware"], middleware); }; },
+		fileUpload: function (limitFileSize?: number): MethodDecorator { return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"]) f["routeMiddleware"] = []; f["routeMiddleware"].push(createFileUploadMiddleware(parseInt(limitFileSize as any))); f["routeFileUpload"] = true; }; }
 	},
 
 	http: {
@@ -2219,26 +2259,26 @@ const app: App = {
 		patch: function (): MethodDecorator { return httpGeneric("patch"); },
 		options: function (): MethodDecorator { return httpGeneric("options"); },
 		head: function (): MethodDecorator { return httpGeneric("head"); },
-		hidden: function (): MethodDecorator { return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) { (target[propertyKey] || target)["httpHidden"] = true; }; }
+		hidden: function (): MethodDecorator { return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) { (target[propertyKey] || target)["httpHidden"] = true; }; }
 	},
 
 	// Properties
 
-	root: null as string,
+	root: "",
 
-	staticRoot: null as string,
+	staticRoot: "",
 
-	localIp: null as string,
+	localIp: "",
 
 	port: 0,
 
 	dir: {
-		initial: null as string,
-		mainModule: null as string,
-		project: null as string,
-		staticFiles: null as string,
-		views: null as string,
-		routes: null as string[]
+		initial: "",
+		mainModule: "",
+		project: "",
+		staticFiles: "",
+		views: "",
+		routes: [] as string[]
 	},
 
 	express: express(),
@@ -2251,13 +2291,13 @@ const app: App = {
 		buffer: BufferReq as BufferRequest
 	},
 
-	sql: null,
+	sql: null as any,
 
 	multer: null,
 
 	// Methods
 
-	run: function (config?: app.Config): void {
+	run: async function (config?: app.Config): Promise<void> {
 		if (!config)
 			config = {};
 
@@ -2293,13 +2333,13 @@ const app: App = {
 		}
 		if (app.root)
 			app.staticRoot = app.root + app.staticRoot;
-		app.localIp = (("localIp" in config) ? config.localIp : "127.0.0.1");
-		app.port = (Math.max(parseInt(config.port as any) || parseInt(process.env.PORT) || 0, 0) || 3000);
+		app.localIp = (("localIp" in config) ? config.localIp : "127.0.0.1") as any;
+		app.port = (Math.max(parseInt(config.port as any) || 0, 0) || 3000);
 
 		app.dir.project = projectDir;
 		app.dir.mainModule = mainModuleDir;
-		app.dir.staticFiles = staticFilesDir;
-		app.dir.views = viewsDir;
+		app.dir.staticFiles = staticFilesDir as any;
+		app.dir.views = viewsDir as any;
 		app.dir.routes = routesDir;
 
 		FS.rootDir = projectDir;
@@ -2323,8 +2363,8 @@ const app: App = {
 		//Object.freeze(app.dir);
 		//Object.freeze(app);
 
-		if (config.initCallback)
-			config.initCallback();
+		if (config.onInit)
+			await Promise.resolve(config.onInit());
 
 		// Apparently, there are great discussions about using or not compression and about
 		// serving static files directly from Node.js/Express...
@@ -2385,8 +2425,8 @@ const app: App = {
 		if (!config.disableNoCacheHeader)
 			appExpress.use(removeCacheHeader);
 
-		if (config.beforeRouteCallback)
-			config.beforeRouteCallback();
+		if (config.onBeforeRoute)
+			await Promise.resolve(config.onBeforeRoute());
 
 		if (config.logRoutesToConsole)
 			console.log("HTTP Method - Full Route - File");
@@ -2402,10 +2442,13 @@ const app: App = {
 					patch: true,
 					options: true,
 					head: true
-				};
+				},
+				importer: Importer = require("./importer");
 
 			for (let i = 0; i < routesDir.length; i++)
-				extractRoutesFromDir(config, validHttpMethods, "/", routes, routesDir[i]);
+				await extractRoutesFromDir(config, validHttpMethods, "/", routes, importer, routesDir[i]);
+
+			importer.cleanUp();
 
 			if (!routes.length) {
 				if (config.logRoutesToConsole)
@@ -2414,7 +2457,6 @@ const app: App = {
 				if (config.logRoutesToConsole) {
 					routes.sort((a, b) => (a.absolutePath.localeCompare(b.absolutePath) || a.route.localeCompare(b.route) || a.httpMethod.localeCompare(b.httpMethod)));
 
-					let lastFile: string = null;
 					for (let i = 0; i < routes.length; i++) {
 						const route = routes[i];
 						console.log(`${route.httpMethod} - ${route.route} - ${route.absolutePath}`);
@@ -2431,18 +2473,18 @@ const app: App = {
 
 				registerRoutes(appExpress, routes);
 
-				routes.fill(null);
+				routes.splice(0);
 			}
 		} else if (config.logRoutesToConsole) {
 			console.log("No routes found!");
 		}
 
-		cachedFileUploadMiddleware = undefined;
+		cachedFileUploadMiddleware = undefined as any;
 		jsonBodyParserMiddleware = undefined;
 		urlencodedBodyParserMiddleware = undefined;
-		
-		if (config.afterRouteCallback)
-			config.afterRouteCallback();
+
+		if (config.onAfterRoute)
+			await Promise.resolve(config.onAfterRoute());
 
 		appExpress.use(notFoundHandler);
 
@@ -2458,8 +2500,16 @@ const app: App = {
 		}
 		appExpress.use(errorHandlerWithoutCustomHtmlError);
 
-		if (!config.setupOnly)
-			appExpress.listen(app.port, app.localIp);
+		if (config.onFinish)
+			await Promise.resolve(config.onFinish());
+		else
+			return new Promise(function (resolve, reject) {
+				try {
+					appExpress.listen(app.port, app.localIp, resolve);
+				} catch (ex) {
+					reject(ex);
+				}
+			});
 	}
 };
 

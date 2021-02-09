@@ -25,8 +25,11 @@ function fixProjectRelativePath(projectRelativePath: string): string {
 	return projectRelativePath;
 }
 
-function save(projectRelativePath: string, data: string | Buffer, flag: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
+function save(projectRelativePath: string, data: string | Buffer | null, flag: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void> {
+	if (!data)
+		throw new Error("Null data");
+
+	return new Promise<void>(function (resolve, reject) {
 		try {
 			const options: fs.WriteFileOptions = {
 				flag: flag
@@ -38,7 +41,7 @@ function save(projectRelativePath: string, data: string | Buffer, flag: string, 
 			if (encoding !== undefined)
 				options.encoding = encoding;
 
-			fs.writeFile(FileSystem.absolutePath(projectRelativePath), data, options, (err) => {
+			fs.writeFile(FileSystem.absolutePath(projectRelativePath), data, options, function (err) {
 				if (err)
 					reject(err);
 				else
@@ -51,7 +54,7 @@ function save(projectRelativePath: string, data: string | Buffer, flag: string, 
 }
 
 function append(projectRelativePath: string, data: string | Buffer, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
+	return new Promise<void>(function (resolve, reject) {
 		try {
 			const options: fs.WriteFileOptions = {
 				flag: "a"
@@ -63,7 +66,7 @@ function append(projectRelativePath: string, data: string | Buffer, mode?: fs.Mo
 			if (encoding !== undefined)
 				options.encoding = encoding;
 
-			fs.appendFile(FileSystem.absolutePath(projectRelativePath), data, options, (err) => {
+			fs.appendFile(FileSystem.absolutePath(projectRelativePath), data, options, function (err) {
 				if (err)
 					reject(err);
 				else
@@ -76,19 +79,19 @@ function append(projectRelativePath: string, data: string | Buffer, mode?: fs.Mo
 }
 
 function appendToExistingFile(projectRelativePath: string, data: string | Buffer, encoding?: BufferEncoding): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
+	return new Promise<void>(function (resolve, reject) {
 		try {
 			// Unfortunately, using fs.appendFile() with "r+" has the same effect as fs.writeFile()...
-			fs.open(fixProjectRelativePath(projectRelativePath), "r+", (err, fd) => {
+			fs.open(fixProjectRelativePath(projectRelativePath), "r+", function (err, fd) {
 				if (err) {
 					reject(err);
 					return;
 				}
 
-				function cleanup(err: any): void {
+				function cleanUp(err: any): void {
 					if (fd) {
 						try {
-							fs.close(fd, (closeErr) => {
+							fs.close(fd, function (closeErr) {
 								if (err)
 									reject(err);
 								else if (closeErr)
@@ -104,16 +107,16 @@ function appendToExistingFile(projectRelativePath: string, data: string | Buffer
 					}
 				}
 
-				fs.fstat(fd, (err, stats) => {
+				fs.fstat(fd, function (err, stats) {
 					if (err) {
-						cleanup(err);
+						cleanUp(err);
 						return;
 					}
 
 					if (encoding)
-						fs.write(fd, data as string, stats.size, encoding, cleanup);
+						fs.write(fd, data as string, stats.size, encoding, cleanUp);
 					else
-						fs.write(fd, data as Buffer, 0, data.length, stats.size, cleanup);
+						fs.write(fd, data as Buffer, 0, data.length, stats.size, cleanUp);
 				});
 			});
 		} catch (e) {
@@ -128,35 +131,35 @@ export interface UploadedFile {
 	 * 
 	 * If `errorcode` is set, `buffer` will be `null`.
 	 */
-	buffer: Buffer;
+	buffer: Buffer | null;
 
 	/**
 	 * Encoding used to convert the file into bytes.
 	 * 
 	 * If `errorcode` is set, `encoding` will be `null`.
 	 */
-	encoding: string;
+	encoding: string | null;
 
 	/**
 	 * The same value present in the `name` attribute of the HTML `<input>` element.
 	 * 
 	 * If `errorcode` is set, `fieldname` will either be `null`, if it was not possible to identify the source of the error, or will be a string containing the `name` attribute of the failing `<input>` field.
 	 */
-	fieldname: string;
+	fieldname: string | null;
 
 	/**
 	 * Mime type of the file.
 	 * 
 	 * If `errorcode` is set, `mimetype` will be `null`.
 	 */
-	mimetype: string;
+	mimetype: string | null;
 
 	/**
 	 * Name of the file originally uploaded by the user, as stored in their computer.
 	 * 
 	 * If `errorcode` is set, `originalname` will be `null`.
 	 */
-	originalname: string;
+	originalname: string | null;
 
 	/**
 	 * Size of the file in bytes.
@@ -187,7 +190,7 @@ export class FileSystem {
 		return path.join(FileSystem.rootDir, fixProjectRelativePath(projectRelativePath));
 	}
 
-	public static validateUploadedFilename(filename: string): string {
+	public static validateUploadedFilename(filename: string): string | null {
 		// The rules here are basicaly a mix between safety, cross-OS compatibility, actual rules...
 		// https://stackoverflow.com/q/1976007/3569421
 		if (!filename || !(filename = filename.trim()))
@@ -222,9 +225,9 @@ export class FileSystem {
 	}
 
 	public static createDirectory(projectRelativePath: string, options?: fs.Mode | fs.MakeDirectoryOptions): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(function (resolve, reject) {
 			try {
-				fs.mkdir(FileSystem.absolutePath(projectRelativePath), options, (err) => {
+				fs.mkdir(FileSystem.absolutePath(projectRelativePath), options, function (err) {
 					if (err)
 						reject(err);
 					else
@@ -237,9 +240,9 @@ export class FileSystem {
 	}
 
 	public static deleteDirectory(projectRelativePath: string): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(function (resolve, reject) {
 			try {
-				fs.rmdir(FileSystem.absolutePath(projectRelativePath), { recursive: false }, (err) => {
+				fs.rmdir(FileSystem.absolutePath(projectRelativePath), { recursive: false }, function (err) {
 					if (err)
 						reject(err);
 					else
@@ -252,9 +255,9 @@ export class FileSystem {
 	}
 
 	public static deleteFilesAndDirectory(projectRelativePath: string): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(function (resolve, reject) {
 			try {
-				fs.rmdir(FileSystem.absolutePath(projectRelativePath), { recursive: true }, (err) => {
+				fs.rmdir(FileSystem.absolutePath(projectRelativePath), { recursive: true }, function (err) {
 					if (err)
 						reject(err);
 					else
@@ -267,9 +270,9 @@ export class FileSystem {
 	}
 
 	public static rename(currentProjectRelativePath: string, newProjectRelativePath: string): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(function (resolve, reject) {
 			try {
-				fs.rename(FileSystem.absolutePath(currentProjectRelativePath), FileSystem.absolutePath(newProjectRelativePath), (err) => {
+				fs.rename(FileSystem.absolutePath(currentProjectRelativePath), FileSystem.absolutePath(newProjectRelativePath), function (err) {
 					if (err)
 						reject(err);
 					else
@@ -282,9 +285,9 @@ export class FileSystem {
 	}
 
 	public static deleteFile(projectRelativePath: string): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(function (resolve, reject) {
 			try {
-				fs.unlink(FileSystem.absolutePath(projectRelativePath), (err) => {
+				fs.unlink(FileSystem.absolutePath(projectRelativePath), function (err) {
 					if (err)
 						reject(err);
 					else
@@ -297,9 +300,9 @@ export class FileSystem {
 	}
 
 	public static exists(projectRelativePath: string): Promise<boolean> {
-		return new Promise<boolean>((resolve, reject) => {
+		return new Promise<boolean>(function (resolve, reject) {
 			try {
-				fs.access(FileSystem.absolutePath(projectRelativePath), fs.constants.F_OK, (err) => {
+				fs.access(FileSystem.absolutePath(projectRelativePath), fs.constants.F_OK, function (err) {
 					resolve(!err);
 				});
 			} catch (e) {
@@ -309,7 +312,7 @@ export class FileSystem {
 	}
 
 	public static createNewEmptyFile(projectRelativePath: string, mode?: fs.Mode): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(function (resolve, reject) {
 			try {
 				const options: fs.WriteFileOptions = {
 					encoding: "ascii",
@@ -319,7 +322,7 @@ export class FileSystem {
 				if (mode !== undefined)
 					options.mode = mode;
 
-				fs.writeFile(FileSystem.absolutePath(projectRelativePath), "", options, (err) => {
+				fs.writeFile(FileSystem.absolutePath(projectRelativePath), "", options, function (err) {
 					if (err)
 						reject(err);
 					else

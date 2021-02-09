@@ -4,7 +4,7 @@ import { Readable, Transform } from "stream";
 import { URL } from "url";
 import zlib = require("zlib");
 
-async function send(method: string, url: string | URL, jsonBody: string, body: Buffer, bodyContentType: string, jsonResponse: boolean, rawBuffer: boolean, headers: any, redirCount: number): Promise<JSONResponse | StringResponse | BufferResponse> {
+async function send(method: string, url: string | URL, jsonBody: string | null, body: Buffer | null, bodyContentType: string | null, jsonResponse: boolean, rawBuffer: boolean, headers: any, redirCount: number): Promise<JSONResponse | StringResponse | BufferResponse> {
 	return new Promise<JSONResponse | StringResponse | BufferResponse>(function (resolve, reject) {
 		try {
 			const u = (((typeof url) === "string") ? new URL(url as string) : (url as URL)),
@@ -20,20 +20,22 @@ async function send(method: string, url: string | URL, jsonBody: string, body: B
 					}
 				};
 
-			if (jsonResponse)
-				options.headers["accept"] = "application/json";
+			if (options.headers) {
+				if (jsonResponse)
+					options.headers["accept"] = "application/json";
 
-			if (jsonBody) {
-				options.headers["content-type"] = "application/json";
-			} else if (body) {
-				if (!body.length)
-					reject(new Error("Invalid buffer length"));
-				options.headers["content-type"] = (bodyContentType || "application/octet-stream");
-			}
+				if (jsonBody) {
+					options.headers["content-type"] = "application/json";
+				} else if (body) {
+					if (!body.length)
+						reject(new Error("Invalid buffer length"));
+					options.headers["content-type"] = (bodyContentType || "application/octet-stream");
+				}
 
-			if (headers) {
-				for (let h in headers)
-					options.headers[h] = headers[h];
+				if (headers) {
+					for (let h in headers)
+						options.headers[h] = headers[h];
+				}
 			}
 
 			// https://github.com/nodejs/node/blob/master/lib/_http_client.js
@@ -43,29 +45,34 @@ async function send(method: string, url: string | URL, jsonBody: string, body: B
 			// https://nodejs.org/api/stream.html#stream_event_data
 			// https://nodejs.org/api/buffer.html
 			const httpreq = ((u.protocol === "https:") ? https.request : http.request)(options, function (response) {
-				let done = false,
-					bufferArray: Buffer[] = [],
-					streams: Readable[] = [response];
+				let bufferArray: Buffer[] | null = [],
+					streams: Readable[] | null = [response];
 
 				const cleanUp = function (): boolean {
-					if (done)
+					if (!bufferArray || !streams)
 						return false;
 
-					done = true;
+					const localBufferArray = bufferArray,
+						localStreams = streams;
 
-					for (let i = streams.length - 2; i >= 0; i--) {
+					bufferArray = null;
+					streams = null;
+
+					for (let i = localStreams.length - 2; i >= 0; i--) {
 						try {
-							if (!streams[i].destroyed)
-								streams[i].unpipe();
+							const stream = localStreams[i];
+							if (stream && !stream.destroyed)
+								stream.unpipe();
 						} catch (e) {
 							// Just ignore
 						}
 					}
 
-					for (let i = 0; i < streams.length; i++) {
+					for (let i = 0; i < localStreams.length; i++) {
 						try {
-							if (!streams[i].destroyed)
-								streams[i].destroy();
+							const stream = localStreams[i];
+							if (stream && !stream.destroyed)
+								stream.destroy();
 						} catch (e) {
 							// Just ignore
 						}
@@ -84,11 +91,8 @@ async function send(method: string, url: string | URL, jsonBody: string, body: B
 						// Just ignore
 					}
 
-					bufferArray.fill(null);
-					streams.fill(null);
-
-					bufferArray = null;
-					streams = null;
+					localBufferArray.splice(0);
+					localStreams.splice(0);
 
 					return true;
 				};
@@ -142,27 +146,33 @@ async function send(method: string, url: string | URL, jsonBody: string, body: B
 
 						decompressionStream.on("error", errorHandler);
 
-						streams[streams.length - 1].pipe(decompressionStream, { end: true });
-						streams.push(decompressionStream);
+						const stream = streams[streams.length - 1];
+						if (stream) {
+							stream.pipe(decompressionStream, { end: true });
+							streams.push(decompressionStream);
+						}
 					}
 				}
 
 				const lastStream = streams[streams.length - 1];
 
+				if (!lastStream)
+					return;
+
 				lastStream.on("data", function (chunk) {
-					if (chunk && chunk.length)
+					if (chunk && chunk.length && bufferArray)
 						bufferArray.push(chunk);
 				});
 
 				lastStream.on("end", function () {
-					if (done)
+					if (!bufferArray || !streams)
 						return;
 
-					let str: string = null,
-						buffer: Buffer = null;
+					let str: string | null = null,
+						buffer: Buffer | null = null;
 
 					try {
-						if (response.statusCode >= 300 && response.statusCode <= 399 && response.headers.location) {
+						if (response.statusCode && response.statusCode >= 300 && response.statusCode <= 399 && response.headers.location) {
 							if (redirCount >= 10) {
 								errorHandler(new Error("Too many redirects! Last redirected address: " + response.headers.location));
 							} else {
@@ -183,38 +193,40 @@ async function send(method: string, url: string | URL, jsonBody: string, body: B
 						return;
 					}
 
+					const statusCode = (response.statusCode || 0);
+
 					if (rawBuffer) {
 						resolve({
-							success: (response.statusCode >= 200 && response.statusCode <= 299),
-							statusCode: response.statusCode,
+							success: (statusCode >= 200 && statusCode <= 299),
+							statusCode,
 							headers: response.headers,
 							result: buffer
-						});
+						} as BufferResponse);
 					} else if (jsonResponse) {
 						try {
 							resolve({
-								success: (response.statusCode >= 200 && response.statusCode <= 299),
+								success: (statusCode >= 200 && statusCode <= 299),
 								parseSuccess: true,
-								statusCode: response.statusCode,
+								statusCode,
 								headers: response.headers,
 								result: (str ? JSON.parse(str) : null)
-							});
+							} as JSONResponse);
 						} catch (e) {
 							resolve({
 								success: false,
 								parseSuccess: false,
-								statusCode: response.statusCode,
+								statusCode,
 								headers: response.headers,
 								result: str
-							});
+							} as StringResponse);
 						}
 					} else {
 						resolve({
-							success: (response.statusCode >= 200 && response.statusCode <= 299),
-							statusCode: response.statusCode,
+							success: (statusCode >= 200 && statusCode <= 299),
+							statusCode,
 							headers: response.headers,
 							result: str
-						});
+						} as StringResponse);
 					}
 
 					cleanUp();
@@ -277,7 +289,7 @@ export interface JSONResponse extends CommonResponse {
 	 * 
 	 * `result` could contain a valid object even if `success` is `false`. For example, when the remote server returns a response with status code `500` along with a JSON object describing its internal error.
 	 */
-	result: any;
+	result?: any;
 }
 
 export interface StringResponse extends CommonResponse {
@@ -286,7 +298,7 @@ export interface StringResponse extends CommonResponse {
 	 * 
 	 * `result` could contain a valid value even if `success` is `false`. For example, when the remote server returns a response with status code `500` along with a HTML page describing its internal error.
 	 */
-	result: string;
+	result?: string;
 }
 
 export interface BufferResponse extends CommonResponse {
@@ -295,7 +307,7 @@ export interface BufferResponse extends CommonResponse {
 	 * 
 	 * `result` could contain a valid value even if `success` is `false`. For example, when the remote server returns a response with status code `500` along with a HTML page describing its internal error.
 	 */
-	result: Buffer;
+	result?: Buffer;
 }
 
 export class JSONRequest {
