@@ -1691,6 +1691,20 @@ interface App {
 	multer: any;
 
 	/**
+	 * Returns the directory of the current file.
+	 * 
+	 * It is equivalent to `__dirname` but works for both CommonJS and ECMAScript modules.
+	 */
+	currentDirectoryName(): string;
+
+	/**
+	 * Returns the directory + the file name of the current file.
+	 * 
+	 * It is equivalent to `__filename` but works for both CommonJS and ECMAScript modules.
+	 */
+	currentFileName(): string;
+
+	/**
 	 * Creates, configures and starts listening the Express.js app.
 	 * 
 	 * For more advanced scenarios, such as using WebSockets, it is advisable to provide a function to `config.onFinish`, which makes `app.run()` not to call `app.express.listen()` at the end of the setup process.
@@ -2297,6 +2311,10 @@ const app: App = {
 
 	// Methods
 
+	currentDirectoryName: function (): string { return path.dirname(extractCallingFile()); },
+
+	currentFileName: function (): string { return extractCallingFile(); },
+
 	run: async function (config?: app.Config): Promise<void> {
 		if (!config)
 			config = {};
@@ -2444,6 +2462,8 @@ const app: App = {
 					head: true
 				},
 				importer: Importer = require("./importer");
+
+			importer.sep = path.sep;
 
 			for (let i = 0; i < routesDir.length; i++)
 				await extractRoutesFromDir(config, validHttpMethods, "/", routes, importer, routesDir[i]);

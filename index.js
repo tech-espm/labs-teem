@@ -470,6 +470,8 @@ const app = {
 	sql: null,
 	multer: null,
 	// Methods
+	currentDirectoryName: function () { return path.dirname(extractCallingFile()); },
+	currentFileName: function () { return extractCallingFile(); },
 	run: async function (config) {
 		if (!config)
 			config = {};
@@ -589,6 +591,7 @@ const app = {
 				options: true,
 				head: true
 			}, importer = require("./importer");
+			importer.sep = path.sep;
 			for (let i = 0; i < routesDir.length; i++)
 				await extractRoutesFromDir(config, validHttpMethods, "/", routes, importer, routesDir[i]);
 			importer.cleanUp();
