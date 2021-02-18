@@ -48,19 +48,19 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
 		const f = obj[n];
 		if (f && (typeof f) === "function") {
 			let fullMethodRoute = f["routeFullMethodRoute"], routeMethodName = f["routeMethodName"], routeMiddleware = f["routeMiddleware"], routeMiddlewareWithBody = null, httpMethods = f["httpMethods"];
-			const httpHidden = f["httpHidden"], routeFileUpload = parseInt(f["routeFileUpload"]);
+			const httpHidden = f["httpHidden"], routeFormData = parseInt(f["routeFormData"]);
 			delete f["routeFullMethodRoute"];
 			delete f["routeMethodName"];
 			delete f["routeMiddleware"];
 			delete f["httpMethods"];
 			delete f["httpHidden"];
-			delete f["routeFileUpload"];
+			delete f["routeFormData"];
 			if (httpHidden || (config.allMethodsRoutesHiddenByDefault && (!httpMethods || !httpMethods.length)))
 				continue;
 			if (f.length > 3)
 				throw new Error(`Function "${f.name}", in file ${absolutePath}, should have 3 parameters at most`);
-			if (routeFileUpload && config.disableFileUpload)
-				throw new Error(`config.disableFileUpload is true and app.route.fileUpload() is being used on function "${f.name}", in file ${absolutePath}`);
+			if (routeFormData && config.disableFormData)
+				throw new Error(`config.disableFormData is true and app.route.formData() is being used on function "${f.name}", in file ${absolutePath}`);
 			if (fullMethodRoute) {
 				if (!fullMethodRoute.startsWith("/"))
 					fullMethodRoute = "/" + fullMethodRoute;
@@ -105,8 +105,8 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
 				}
 			}
 			if (canHandleBody) {
-				if (routeFileUpload)
-					routeMiddlewareWithBody = [createFileUploadMiddleware(routeFileUpload)];
+				if (routeFormData)
+					routeMiddlewareWithBody = [createFormDataMiddleware(routeFormData)];
 				else if (!config.disableBodyParser)
 					routeMiddlewareWithBody = [jsonBodyParserMiddleware, urlencodedBodyParserMiddleware];
 				if (routeMiddleware && routeMiddleware.length) {
@@ -116,8 +116,8 @@ function extractRoutesFromObject(config, validHttpMethods, prefix, routes, absol
 						routeMiddlewareWithBody.push.apply(routeMiddlewareWithBody, routeMiddleware);
 				}
 			}
-			else if (routeFileUpload) {
-				throw new Error(`app.route.fileUpload() is being used on function "${f.name}", in file ${absolutePath}, without at least one of the required app.http decorators: all, delete, patch, post or put`);
+			else if (routeFormData) {
+				throw new Error(`app.route.formData() is being used on function "${f.name}", in file ${absolutePath}, without at least one of the required app.http decorators: all, delete, patch, post or put`);
 			}
 			if (all) {
 				routes.push({
@@ -312,13 +312,13 @@ function createErrorHandler(boundUserHandler) {
 	};
 }
 /** @internal */
-function createFileUploadMiddleware(limitFileSize) {
-	if (!cachedFileUploadMiddleware)
-		cachedFileUploadMiddleware = {};
+function createFormDataMiddleware(limitFileSize) {
+	if (!cachedFormDataMiddleware)
+		cachedFormDataMiddleware = {};
 	if (!limitFileSize || limitFileSize <= 0)
 		limitFileSize = 10485760;
 	const limitFileSizeStr = limitFileSize.toString();
-	let middleware = cachedFileUploadMiddleware[limitFileSizeStr];
+	let middleware = cachedFormDataMiddleware[limitFileSizeStr];
 	if (!middleware) {
 		const multerMiddleware = app.multer({
 			limits: {
@@ -361,7 +361,7 @@ function createFileUploadMiddleware(limitFileSize) {
 				next();
 			});
 		};
-		cachedFileUploadMiddleware[limitFileSizeStr] = middleware;
+		cachedFormDataMiddleware[limitFileSizeStr] = middleware;
 	}
 	return middleware;
 }
@@ -418,7 +418,7 @@ function errorHandlerWithoutCustomHtmlError(err, req, res, next) {
 /** @internal */
 let htmlErrorHandler;
 /** @internal */
-let cachedFileUploadMiddleware;
+let cachedFormDataMiddleware;
 /** @internal */
 let jsonBodyParserMiddleware;
 /** @internal */
@@ -433,8 +433,8 @@ const app = {
 		middleware: function (...middleware) { return function (target, propertyKey, descriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"])
 			f["routeMiddleware"] = []; if (middleware)
 			f["routeMiddleware"].push.apply(f["routeMiddleware"], middleware); }; },
-		fileUpload: function (limitFileSize) { return function (target, propertyKey, descriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"])
-			f["routeMiddleware"] = []; f["routeMiddleware"].push(createFileUploadMiddleware(parseInt(limitFileSize))); f["routeFileUpload"] = true; }; }
+		formData: function (limitFileSize) { return function (target, propertyKey, descriptor) { const f = (target[propertyKey] || target); if (!f["routeMiddleware"])
+			f["routeMiddleware"] = []; f["routeMiddleware"].push(createFormDataMiddleware(parseInt(limitFileSize))); f["routeFormData"] = true; }; }
 	},
 	http: {
 		all: function () { return httpGeneric("all"); },
@@ -560,7 +560,7 @@ const app = {
 			jsonBodyParserMiddleware = express.json({ limit: bodyParserLimit });
 			urlencodedBodyParserMiddleware = express.urlencoded({ limit: bodyParserLimit, extended: true });
 		}
-		if (!config.disableFileUpload) {
+		if (!config.disableFormData) {
 			// https://www.npmjs.com/package/multer
 			// https://github.com/expressjs/multer/blob/master/StorageEngine.md
 			app.multer = require("multer");
@@ -623,7 +623,7 @@ const app = {
 		else if (config.logRoutesToConsole) {
 			console.log("No routes found!");
 		}
-		cachedFileUploadMiddleware = undefined;
+		cachedFormDataMiddleware = undefined;
 		jsonBodyParserMiddleware = undefined;
 		urlencodedBodyParserMiddleware = undefined;
 		if (config.onAfterRoute)

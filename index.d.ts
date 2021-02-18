@@ -154,7 +154,7 @@ declare namespace app {
 			* - `@app.http.post()`
 			* - `@app.http.put()`
 			*
-			* If the `@app.route.fileUpload()` decorator is used on a route, both JSON and urlencoded middleware functions are ignored, as the multer package takes place.
+			* If the `@app.route.formData()` decorator is used on a route, both JSON and urlencoded middleware functions are ignored, as the multer package takes place.
 			*
 			* Refer to the following links for more information:
 			*
@@ -163,15 +163,15 @@ declare namespace app {
 			*/
 		disableBodyParser?: boolean | null;
 		/**
-			* Disables the handling of uploaded files.
+			* Disables the handling of bodies with `multipart/form-data` encoding (which includes files uploaded through forms and FormData objects).
 			*
-			* When enabled, a route must be marked with the `@app.route.fileUpload()` decorator for the file handling to actually take place.
+			* When enabled, a route must be marked with the `@app.route.formData()` decorator for the file handling to actually take place.
 			*
-			* File handling is achieved through the multer package.
+			* The actual handling is performed by the multer package.
 			*
 			* Refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
 			*/
-		disableFileUpload?: boolean | null;
+		disableFormData?: boolean | null;
 		/**
 			* Disables the middleware function that sends a few HTTP headers to prevent caching of all dynamic responses.
 			*
@@ -484,7 +484,7 @@ interface FileSystem {
 		* ```ts
 		* class Order {
 		*     '@'app.http.post()
-		*     '@'app.route.fileUpload()
+		*     '@'app.route.formData()
 		*     public m1(req: app.Request, res: app.Response) {
 		*         ...
 		*         // Save the name provided by the user in the database and generate an id
@@ -1083,7 +1083,7 @@ interface RouteDecorators {
 		*/
 	middleware(...middleware: any[]): MethodDecorator;
 	/**
-		* Indicates that files could be uploaded to the server through this route.
+		* Indicates that data (and possibly files) is sent to the server through this route with `multipart/form-data` encoding.
 		*
 		* Internally, this is done using the package multer (https://www.npmjs.com/package/multer).
 		*
@@ -1150,7 +1150,7 @@ interface RouteDecorators {
 		* ```ts
 		* class Order {
 		*     '@'app.http.post()
-		*     '@'app.route.fileUpload()
+		*     '@'app.route.formData()
 		*     public m1(req: app.Request, res: app.Response) {
 		*         // Accessing the files by their name
 		*         console.log(req.uploadedFiles.avatar.size);
@@ -1168,7 +1168,7 @@ interface RouteDecorators {
 		* ```ts
 		* class Order {
 		*     '@'app.http.post()
-		*     '@'app.route.fileUpload()
+		*     '@'app.route.formData()
 		*     public m1(req: app.Request, res: app.Response) {
 		*         if (!req.uploadedFiles.avatar) {
 		*             // User did not send the file
@@ -1186,7 +1186,7 @@ interface RouteDecorators {
 		* ```ts
 		* class Order {
 		*     '@'app.http.post()
-		*     '@'app.route.fileUpload(500000)
+		*     '@'app.route.formData(500000)
 		*     public m1(req: app.Request, res: app.Response) {
 		*         if (!req.uploadedFiles.avatar) {
 		*             // User did not send the file
@@ -1204,7 +1204,7 @@ interface RouteDecorators {
 		* ```ts
 		* class Order {
 		*     '@'app.http.post()
-		*     '@'app.route.fileUpload(500000)
+		*     '@'app.route.formData(500000)
 		*     public m1(req: app.Request, res: app.Response) {
 		*         if (!req.uploadedFiles.avatar) {
 		*             // User did not send the file
@@ -1217,11 +1217,13 @@ interface RouteDecorators {
 		* }
 		* ```
 		*
+		* When using the `@app.route.formData()` decorator, data *MUST* be sent with `multipart/form-data` encoding, or else nothing will be received.
+		*
 		* Since all files are stored in memory, depending on the amount of files uploaded to the server during a given period of time and depending on the size of the files, this approach could cause too much pressure on the server's memory. In such cases it is advisable to use multer directly as any other middleware (using `@app.route.middleware`) and configure it in more advanced ways.
 		*
 		* For convenience, multer can be accessed through `app.multer` without the need for requiring it.
 		*
-		* If `config.disableFileUpload` is `true`, though, `app.multer` will be `null` and it will not be possible to use the `@app.route.fileUpload()` decorator.
+		* If `config.disableFormData` is `true`, though, `app.multer` will be `null` and it will not be possible to use the `@app.route.formData()` decorator.
 		*
 		* Refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
 		*
@@ -1229,7 +1231,7 @@ interface RouteDecorators {
 		*
 		* @param limitFileSize Maximum acceptable file size in bytes (10MiB, or 10485760 bytes, is used if no other value is provided).
 		*/
-	fileUpload(limitFileSize?: number): MethodDecorator;
+	formData(limitFileSize?: number): MethodDecorator;
 }
 interface HttpDecorators {
 	/**
@@ -1577,7 +1579,7 @@ interface App {
 	/**
 		* Convenience for accessing multer package.
 		*
-		* If `config.disableFileUpload` is `true`, `app.multer` will be `null`.
+		* If `config.disableFormData` is `true`, `app.multer` will be `null`.
 		*
 		* Refer to https://www.npmjs.com/package/multer for more information on the package options and use cases.
 		*/
