@@ -1507,6 +1507,8 @@ interface RequestMethods {
 interface Directories {
 	/**
 	 * The initial working directory, obtained by calling `process.cwd()` at the beginning of the setup process.
+	 * 
+	 * `app.dir.initial` does not end with a slash (`\` in Windows or `/` in Linux/Mac).
 	 */
 	initial: string;
 
@@ -1518,6 +1520,8 @@ interface Directories {
 	 * Using `require.main.path` does not work on some cloud providers, because they perform additional requires of their own before actually executing the app's main file (like `app.js`, `server.js` or `index.js`).
 	 * 
 	 * `app.dir.mainModule` is used as `app.dir.routes`'s base directory when `config.routesDir` is not provided.
+	 * 
+	 * `app.dir.mainModule` does not end with a slash (`\` in Windows or `/` in Linux/Mac), even if the value provided in `config.mainModuleDir` does.
 	 */
 	mainModule: string;
 
@@ -1529,6 +1533,8 @@ interface Directories {
 	 * `app.dir.project` is used as `app.dir.staticFiles`'s and `app.dir.views`'s base directory when `config.staticFilesDir` / `config.viewsDir` are not provided.
 	 * 
 	 * `app.dir.project` is also used as the base directory for all `app.fileSystem` methods.
+	 * 
+	 * `app.dir.project` does not end with a slash (`\` in Windows or `/` in Linux/Mac), even if the value provided in `config.projectDir` does.
 	 */
 	project: string;
 
@@ -1538,6 +1544,8 @@ interface Directories {
 	 * If a value is not provided in `config.staticFilesDir`, `app.dir.project + "/public"` is used.
 	 * 
 	 * If `config.disableStaticFiles` is `true`, `app.dir.staticFiles` will be `null` and static file handling will not be automatically configured, regardless of the value provided in `config.staticFilesDir`.
+	 * 
+	 * `app.dir.staticFiles` does not end with a slash (`\` in Windows or `/` in Linux/Mac), even if the value provided in `config.staticFilesDir` does.
 	 */
 	staticFiles: string;
 
@@ -1547,6 +1555,8 @@ interface Directories {
 	 * If a value is not provided in `config.viewsDir`, `app.dir.project + "/views"` is used.
 	 * 
 	 * If `config.disableViews` is `true`, `app.dir.views` will be `null` and the EJS engine will not be automatically configured, regardless of the value provided in `config.viewsDir`.
+	 * 
+	 * `app.dir.views` does not end with a slash (`\` in Windows or `/` in Linux/Mac), even if the value provided in `config.viewsDir` does.
 	 */
 	views: string;
 
@@ -1562,6 +1572,8 @@ interface Directories {
 	 * If a directory in `app.dir.routes` does not exist, it is automatically removed from the array.
 	 * 
 	 * If `config.disableRoutes` is `true`, `app.dir.routes` will be `[]` and the routing will not be automatically configured.
+	 * 
+	 * The values in `app.dir.routes` do not end with a slash (`\` in Windows or `/` in Linux/Mac), even if the values provided in `config.routesDir` do.
 	 */
 	routes: string[];
 }
@@ -1694,6 +1706,8 @@ interface App {
 	 * Returns the directory of the current file.
 	 * 
 	 * It is equivalent to `__dirname` but works for both CommonJS and ECMAScript modules.
+	 * 
+	 * `app.currentDirectoryName()` does not end with a slash (`\` in Windows or `/` in Linux/Mac).
 	 */
 	currentDirectoryName(): string;
 
@@ -2322,20 +2336,24 @@ const app: App = {
 		if (config.allMethodsRoutesAllByDefault && config.allMethodsRoutesHiddenByDefault)
 			throw new Error("Both config.allMethodsRoutesAllByDefault and config.allMethodsRoutesHiddenByDefault are set to true");
 
-		app.dir.initial = process.cwd();
+		function fixSlash(p: any): any {
+			return ((p && p.endsWith(path.sep)) ? p.substr(0, p.length - 1) : p);
+		}
+
+		app.dir.initial = fixSlash(process.cwd());
 
 		const appExpress = app.express,
-			projectDir = (config.projectDir || app.dir.initial),
+			projectDir = fixSlash(config.projectDir || app.dir.initial) as string,
 			// Using require.main.path does not work on some cloud providers, because
 			// they perform additional requires of their own before actually executing
 			// the app's main file (like app.js, server.js or index.js).
-			mainModuleDir = (config.mainModuleDir || path.dirname(extractCallingFile())),
-			staticFilesDir = (config.disableStaticFiles ? null : (config.staticFilesDir || path.join(projectDir, "public"))),
-			viewsDir = (config.disableViews ? null : (config.viewsDir || path.join(projectDir, "views"))),
+			mainModuleDir = fixSlash(config.mainModuleDir || path.dirname(extractCallingFile())) as string,
+			staticFilesDir = fixSlash(config.disableStaticFiles ? null : (config.staticFilesDir || path.join(projectDir, "public"))) as string | null,
+			viewsDir = fixSlash(config.disableViews ? null : (config.viewsDir || path.join(projectDir, "views"))) as string | null,
 			routesDir = (config.disableRoutes ? [] : (config.routesDir as string[] || [path.join(mainModuleDir, "routes"), path.join(mainModuleDir, "route"), path.join(mainModuleDir, "controllers"), path.join(mainModuleDir, "controller")]));
 
 		for (let i = routesDir.length - 1; i >= 0; i--) {
-			if (!routesDir[i] || !fs.existsSync(routesDir[i]))
+			if (!routesDir[i] || !fs.existsSync(routesDir[i] = fixSlash(routesDir[i])))
 				routesDir.splice(i, 1);
 		}
 

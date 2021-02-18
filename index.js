@@ -477,14 +477,17 @@ const app = {
 			config = {};
 		if (config.allMethodsRoutesAllByDefault && config.allMethodsRoutesHiddenByDefault)
 			throw new Error("Both config.allMethodsRoutesAllByDefault and config.allMethodsRoutesHiddenByDefault are set to true");
-		app.dir.initial = process.cwd();
-		const appExpress = app.express, projectDir = (config.projectDir || app.dir.initial), 
+		function fixSlash(p) {
+			return ((p && p.endsWith(path.sep)) ? p.substr(0, p.length - 1) : p);
+		}
+		app.dir.initial = fixSlash(process.cwd());
+		const appExpress = app.express, projectDir = fixSlash(config.projectDir || app.dir.initial), 
 		// Using require.main.path does not work on some cloud providers, because
 		// they perform additional requires of their own before actually executing
 		// the app's main file (like app.js, server.js or index.js).
-		mainModuleDir = (config.mainModuleDir || path.dirname(extractCallingFile())), staticFilesDir = (config.disableStaticFiles ? null : (config.staticFilesDir || path.join(projectDir, "public"))), viewsDir = (config.disableViews ? null : (config.viewsDir || path.join(projectDir, "views"))), routesDir = (config.disableRoutes ? [] : (config.routesDir || [path.join(mainModuleDir, "routes"), path.join(mainModuleDir, "route"), path.join(mainModuleDir, "controllers"), path.join(mainModuleDir, "controller")]));
+		mainModuleDir = fixSlash(config.mainModuleDir || path.dirname(extractCallingFile())), staticFilesDir = fixSlash(config.disableStaticFiles ? null : (config.staticFilesDir || path.join(projectDir, "public"))), viewsDir = fixSlash(config.disableViews ? null : (config.viewsDir || path.join(projectDir, "views"))), routesDir = (config.disableRoutes ? [] : (config.routesDir || [path.join(mainModuleDir, "routes"), path.join(mainModuleDir, "route"), path.join(mainModuleDir, "controllers"), path.join(mainModuleDir, "controller")]));
 		for (let i = routesDir.length - 1; i >= 0; i--) {
-			if (!routesDir[i] || !fs.existsSync(routesDir[i]))
+			if (!routesDir[i] || !fs.existsSync(routesDir[i] = fixSlash(routesDir[i])))
 				routesDir.splice(i, 1);
 		}
 		app.root = ((!config.root || config.root === "/") ? "" : (config.root.endsWith("/") ? config.root.substr(0, config.root.length - 1) : config.root));
