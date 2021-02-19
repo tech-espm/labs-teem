@@ -1288,7 +1288,7 @@ interface RouteDecorators {
 	 * }
 	 * ```
 	 * 
-	 * You can access the file's contents directly through its `buffer` or you can save the file in disk:
+	 * You can access the file's contents directly through its `buffer` or you can save the file to disk:
 	 * 
 	 * ```ts
 	 * class Order {
@@ -1300,7 +1300,7 @@ interface RouteDecorators {
 	 *         } else if (req.uploadedFiles.avatar.errorCode) {
 	 *             // File has been sent, but its size exceeds 500000 bytes
 	 *         } else {
-	 *             app.fileSystem.saveBuffer("avatars/123.jpg", req.uploadedFiles.avatar.buffer);
+	 *             app.fileSystem.saveUploadedFile("avatars/123.jpg", req.uploadedFiles.avatar);
 	 *         }
 	 *     }
 	 * }
