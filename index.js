@@ -557,8 +557,8 @@ const app = {
 			let bodyParserLimit = parseInt(config.bodyParserLimit);
 			if (isNaN(bodyParserLimit) || bodyParserLimit <= 0)
 				bodyParserLimit = 10485760;
-			jsonBodyParserMiddleware = express.json({ limit: bodyParserLimit });
-			urlencodedBodyParserMiddleware = express.urlencoded({ limit: bodyParserLimit, extended: true });
+			jsonBodyParserMiddleware = express.json({ limit: bodyParserLimit, inflate: true, strict: false });
+			urlencodedBodyParserMiddleware = express.urlencoded({ limit: bodyParserLimit, inflate: true, extended: true });
 		}
 		if (!config.disableFormData) {
 			// https://www.npmjs.com/package/multer

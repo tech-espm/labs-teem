@@ -1,6 +1,6 @@
 {
   "name": "teem",
-  "version": "0.0.14",
+  "version": "0.0.16",
   "description": "Opinionated TypeScript wrapper around Express.js, EJS and MySQL.",
   "main": "index.js",
   "engines": {
