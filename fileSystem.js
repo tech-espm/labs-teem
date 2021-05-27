@@ -112,6 +112,26 @@ function appendToExistingFile(projectRelativePath, data, encoding) {
 		}
 	});
 }
+function read(projectRelativePath, flag, buffer, encoding) {
+	return new Promise(function (resolve, reject) {
+		try {
+			const options = {
+				flag: flag
+			};
+			if (encoding !== undefined && !buffer)
+				options.encoding = encoding;
+			fs.readFile(FileSystem.absolutePath(projectRelativePath), options, function (err, data) {
+				if (err)
+					reject(err);
+				else
+					resolve(data);
+			});
+		}
+		catch (e) {
+			reject(e);
+		}
+	});
+}
 class FileSystem {
 	static absolutePath(projectRelativePath) {
 		return path.join(FileSystem.rootDir, fixProjectRelativePath(projectRelativePath));
@@ -285,6 +305,12 @@ class FileSystem {
 	}
 	static appendTextToExistingFile(projectRelativePath, text, encoding) {
 		return appendToExistingFile(projectRelativePath, text, encoding || "utf8");
+	}
+	static readBufferFromExistingFile(projectRelativePath) {
+		return read(projectRelativePath, "r", true);
+	}
+	static readTextFromExistingFile(projectRelativePath, encoding) {
+		return read(projectRelativePath, "r", false, encoding || "utf8");
 	}
 }
 exports.FileSystem = FileSystem;

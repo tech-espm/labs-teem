@@ -711,6 +711,25 @@ interface FileSystem {
 		* @param encoding Optional encoding to be used when converting `text` into bytes (Refer to https://nodejs.org/api/buffer.html#buffer_buffers_and_character_encodings for more information on the available encodings).
 		*/
 	appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void>;
+	/**
+			* Reads the contents of a file as a buffer.
+			*
+			* The method fails if `projectRelativePath` cannot be read from or if it does not exist.
+			*
+		* @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be read from. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+		*/
+	readBufferFromExistingFile(projectRelativePath: string, mode?: fs.Mode): Promise<Buffer>;
+	/**
+		* Reads the contents of a file as a string.
+		*
+		* The method fails if `projectRelativePath` cannot be read from or if it does not exist.
+		*
+		* If no encoding is provided, `utf8` is used.
+		*
+		* @param projectRelativePath Path, relative to `app.dir.projectDir`, of the file to be read from. Refer to `app.fileSystem.absolutePath()` for more information on relative paths.
+		* @param encoding Optional encoding to be used when converting bytes into text (Refer to https://nodejs.org/api/buffer.html#buffer_buffers_and_character_encodings for more information on the available encodings).
+		*/
+	readTextFromExistingFile(projectRelativePath: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<string>;
 }
 interface CommonRequest<T extends CommonRes> {
 	/**

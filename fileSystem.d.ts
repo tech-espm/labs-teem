@@ -71,4 +71,6 @@ export declare class FileSystem {
 	static appendText(projectRelativePath: string, text: string, mode?: fs.Mode, encoding?: BufferEncoding): Promise<void>;
 	static appendBufferToExistingFile(projectRelativePath: string, buffer: Buffer): Promise<void>;
 	static appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void>;
+	static readBufferFromExistingFile(projectRelativePath: string): Promise<Buffer>;
+	static readTextFromExistingFile(projectRelativePath: string, encoding?: BufferEncoding): Promise<string>;
 }

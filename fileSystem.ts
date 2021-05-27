@@ -125,6 +125,28 @@ function appendToExistingFile(projectRelativePath: string, data: string | Buffer
 	});
 }
 
+function read(projectRelativePath: string, flag: string, buffer: boolean, encoding?: BufferEncoding): Promise<string | Buffer> {
+	return new Promise<string | Buffer>(function (resolve, reject) {
+		try {
+			const options: fs.WriteFileOptions = {
+				flag: flag
+			};
+
+			if (encoding !== undefined && !buffer)
+				options.encoding = encoding;
+
+			fs.readFile(FileSystem.absolutePath(projectRelativePath), options, function (err, data) {
+				if (err)
+					reject(err);
+				else
+					resolve(data);
+			});
+		} catch (e) {
+			reject(e);
+		}
+	});
+}
+
 export interface UploadedFile {
 	/**
 	 * Buffer containing the file's bytes.
@@ -372,5 +394,13 @@ export class FileSystem {
 
 	public static appendTextToExistingFile(projectRelativePath: string, text: string, encoding?: BufferEncoding): Promise<void> {
 		return appendToExistingFile(projectRelativePath, text, encoding || "utf8");
+	}
+
+	public static readBufferFromExistingFile(projectRelativePath: string): Promise<Buffer> {
+		return read(projectRelativePath, "r", true) as Promise<Buffer>;
+	}
+
+	public static readTextFromExistingFile(projectRelativePath: string, encoding?: BufferEncoding): Promise<string> {
+		return read(projectRelativePath, "r", false, encoding || "utf8") as Promise<string>;
 	}
 }
