@@ -1,5 +1,5 @@
-﻿import mysql = require("mysql");
-export declare function init(poolConfig: mysql.PoolConfig): void;
+﻿import mysql = require("mysql2");
+export declare function init(poolConfig: mysql.PoolOptions): void;
 export interface SqlInterface {
 	/**
 		* How many rows were affected by the last execution of `query()` or `scalar()`.
@@ -8,7 +8,7 @@ export interface SqlInterface {
 	/**
 		* The filed information returned by the last execution of `query()` or `scalar()` (can be `null`).
 		*/
-	resultFields: mysql.FieldInfo[] | null;
+	resultFields: mysql.FieldPacket[] | null;
 	/**
 		* Executes the statement given in `queryStr` and returns the resulting rows (if any).
 		*
@@ -50,7 +50,7 @@ export declare class Sql implements SqlInterface {
 	private connection;
 	private pendingTransaction;
 	affectedRows: number;
-	resultFields: mysql.FieldInfo[] | null;
+	resultFields: mysql.FieldPacket[] | null;
 	static connect<T>(callback: (sql: Sql) => Promise<T>): Promise<T>;
 	query<T>(queryStr: string, values?: any): Promise<T[]>;
 	scalar<T>(queryStr: string, values?: any): Promise<T>;

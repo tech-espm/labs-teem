@@ -1,7 +1,7 @@
 ﻿"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Sql = exports.init = void 0;
-const mysql = require("mysql");
+const mysql = require("mysql2");
 let pool;
 function init(poolConfig) {
 	if (!poolConfig)
@@ -39,12 +39,9 @@ class Sql {
 						.then(function (value) {
 						if (sql.pendingTransaction) {
 							sql.pendingTransaction = false;
-							connection.rollback(function (error) {
+							connection.rollback(function () {
 								cleanUp();
-								if (error)
-									reject(error);
-								else
-									resolve(value);
+								resolve(value);
 							});
 						}
 						else {
@@ -54,12 +51,9 @@ class Sql {
 					}, function (reason) {
 						if (sql.pendingTransaction) {
 							sql.pendingTransaction = false;
-							connection.rollback(function (error) {
+							connection.rollback(function () {
 								cleanUp();
-								if (error)
-									reject(error);
-								else
-									reject(reason);
+								reject(reason);
 							});
 						}
 						else {
@@ -71,12 +65,9 @@ class Sql {
 				catch (e) {
 					if (sql.pendingTransaction) {
 						sql.pendingTransaction = false;
-						connection.rollback(function (error) {
+						connection.rollback(function () {
 							cleanUp();
-							if (error)
-								reject(error);
-							else
-								reject(e);
+							reject(e);
 						});
 					}
 					else {
@@ -172,11 +163,7 @@ class Sql {
 		return new Promise((resolve, reject) => {
 			if (!this.connection)
 				throw new Error("Null connection");
-			this.connection.rollback((error) => {
-				if (error) {
-					reject(error);
-					return;
-				}
+			this.connection.rollback(() => {
 				this.pendingTransaction = false;
 				resolve();
 			});

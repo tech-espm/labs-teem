@@ -3,7 +3,7 @@ import express = require("express");
 import fs = require("fs");
 import { UploadedFile as UF } from "./fileSystem";
 import { CommonResponse as CommonRes, JSONResponse as JSONRes, StringResponse as StringRes, BufferResponse as BufferRes } from "./request";
-import type { PoolConfig } from "mysql";
+import type { PoolOptions } from "mysql2";
 import type { ServeStaticOptions } from "serve-static";
 import type { URL } from "url";
 import type { SqlInterface } from "./sql";
@@ -79,6 +79,7 @@ declare namespace app {
 			* ```ts
 			* {
 			*     connectionLimit: 30,
+			*     waitForConnections: true,
 			*     charset: "utf8mb4",
 			*     host: "ip-or-hostname",
 			*     port: 3306,
@@ -88,9 +89,9 @@ declare namespace app {
 			* }
 			* ```
 			*
-			* Refer to https://www.npmjs.com/package/mysql#pool-options and https://www.npmjs.com/package/mysql#connection-options for more information on the available options.
+			* Refer to https://www.npmjs.com/package/mysql2#using-connection-pools for more information on the available options.
 			*/
-		sqlConfig?: PoolConfig | null;
+		sqlConfig?: PoolOptions | null;
 		/**
 			* Enables the compression of all responses produced by routes and middleware functions (static files are not affected by this flag, as they are not compressed by default).
 			*

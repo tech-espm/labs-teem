@@ -1,8 +1,8 @@
-import mysql = require("mysql");
+import mysql = require("mysql2");
 
 let pool: mysql.Pool;
 
-export function init(poolConfig: mysql.PoolConfig): void {
+export function init(poolConfig: mysql.PoolOptions): void {
 	if (!poolConfig)
 		throw new Error("Missing poolConfig");
 
@@ -19,7 +19,7 @@ export interface SqlInterface {
 	/**
 	 * The filed information returned by the last execution of `query()` or `scalar()` (can be `null`).
 	 */
-	resultFields: mysql.FieldInfo[] | null;
+	resultFields: mysql.FieldPacket[] | null;
 
 	/**
 	 * Executes the statement given in `queryStr` and returns the resulting rows (if any).
@@ -69,7 +69,7 @@ export class Sql implements SqlInterface {
 	private connection: mysql.PoolConnection | null = null;
 	private pendingTransaction = false;
 	public affectedRows = 0;
-	public resultFields: mysql.FieldInfo[] | null = null;
+	public resultFields: mysql.FieldPacket[] | null = null;
 
 	public static async connect<T>(callback: (sql: Sql) => Promise<T>): Promise<T> {
 		return new Promise<T>(function (resolve, reject) {
@@ -95,13 +95,10 @@ export class Sql implements SqlInterface {
 						.then(function (value: T) {
 							if (sql.pendingTransaction) {
 								sql.pendingTransaction = false;
-								connection.rollback(function (error) {
+								connection.rollback(function () {
 									cleanUp();
 
-									if (error)
-										reject(error);
-									else
-										resolve(value);
+									resolve(value);
 								});
 							} else {
 								cleanUp();
@@ -110,13 +107,10 @@ export class Sql implements SqlInterface {
 						}, function (reason) {
 							if (sql.pendingTransaction) {
 								sql.pendingTransaction = false;
-								connection.rollback(function (error) {
+								connection.rollback(function () {
 									cleanUp();
 
-									if (error)
-										reject(error);
-									else
-										reject(reason);
+									reject(reason);
 								});
 							} else {
 								cleanUp();
@@ -126,13 +120,10 @@ export class Sql implements SqlInterface {
 				} catch (e) {
 					if (sql.pendingTransaction) {
 						sql.pendingTransaction = false;
-						connection.rollback(function (error) {
+						connection.rollback(function () {
 							cleanUp();
 
-							if (error)
-								reject(error);
-							else
-								reject(e);
+							reject(e);
 						});
 					} else {
 						cleanUp();
@@ -145,7 +136,7 @@ export class Sql implements SqlInterface {
 
 	public async query<T>(queryStr: string, values?: any): Promise<T[]> {
 		return new Promise<T[]>((resolve, reject) => {
-			const callback = (error: mysql.MysqlError | null, results?: any, fields?: mysql.FieldInfo[]) => {
+			const callback = (error: mysql.QueryError | null, results?: any, fields?: mysql.FieldPacket[]) => {
 				if (error) {
 					reject(error);
 					return;
@@ -169,7 +160,7 @@ export class Sql implements SqlInterface {
 
 	public async scalar<T>(queryStr: string, values?: any): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
-			const callback = (error: mysql.MysqlError | null, results?: any, fields?: mysql.FieldInfo[]) => {
+			const callback = (error: mysql.QueryError | null, results?: any, fields?: mysql.FieldPacket[]) => {
 				if (error) {
 					reject(error);
 					return;
@@ -252,12 +243,7 @@ export class Sql implements SqlInterface {
 			if (!this.connection)
 				throw new Error("Null connection");
 
-			this.connection.rollback((error) => {
-				if (error) {
-					reject(error);
-					return;
-				}
-
+			this.connection.rollback(() => {
 				this.pendingTransaction = false;
 
 				resolve();
