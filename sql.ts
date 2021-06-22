@@ -35,7 +35,7 @@ export interface SqlInterface {
 	 * @param queryStr The statement to be executed.
 	 * @param values Optional array of values to be used as the arguments of the ? placeholders used in `queryStr`.
 	 */
-	scalar<T>(queryStr: string, values?: any): Promise<T>;
+	scalar<T>(queryStr: string, values?: any): Promise<T | null>;
 
 	/**
 	 * Begins a database transaction.
@@ -64,7 +64,7 @@ export interface SqlInterface {
 }
 
 export class Sql implements SqlInterface {
-	// https://www.npmjs.com/package/mysql
+	// https://www.npmjs.com/package/mysql2
 
 	private connection: mysql.PoolConnection | null = null;
 	private pendingTransaction = false;
@@ -158,8 +158,8 @@ export class Sql implements SqlInterface {
 		});
 	}
 
-	public async scalar<T>(queryStr: string, values?: any): Promise<T> {
-		return new Promise<T>((resolve, reject) => {
+	public async scalar<T>(queryStr: string, values?: any): Promise<T | null> {
+		return new Promise<T | null>((resolve, reject) => {
 			const callback = (error: mysql.QueryError | null, results?: any, fields?: mysql.FieldPacket[]) => {
 				if (error) {
 					reject(error);
@@ -180,7 +180,7 @@ export class Sql implements SqlInterface {
 					}
 				}
 
-				resolve(results as T);
+				resolve(null);
 			};
 
 			if (!this.connection)

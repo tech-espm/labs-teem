@@ -12,7 +12,7 @@ function init(poolConfig) {
 exports.init = init;
 class Sql {
 	constructor() {
-		// https://www.npmjs.com/package/mysql
+		// https://www.npmjs.com/package/mysql2
 		this.connection = null;
 		this.pendingTransaction = false;
 		this.affectedRows = 0;
@@ -115,7 +115,7 @@ class Sql {
 						}
 					}
 				}
-				resolve(results);
+				resolve(null);
 			};
 			if (!this.connection)
 				throw new Error("Null connection");

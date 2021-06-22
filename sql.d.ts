@@ -22,7 +22,7 @@ export interface SqlInterface {
 		* @param queryStr The statement to be executed.
 		* @param values Optional array of values to be used as the arguments of the ? placeholders used in `queryStr`.
 		*/
-	scalar<T>(queryStr: string, values?: any): Promise<T>;
+	scalar<T>(queryStr: string, values?: any): Promise<T | null>;
 	/**
 		* Begins a database transaction.
 		*
@@ -53,7 +53,7 @@ export declare class Sql implements SqlInterface {
 	resultFields: mysql.FieldPacket[] | null;
 	static connect<T>(callback: (sql: Sql) => Promise<T>): Promise<T>;
 	query<T>(queryStr: string, values?: any): Promise<T[]>;
-	scalar<T>(queryStr: string, values?: any): Promise<T>;
+	scalar<T>(queryStr: string, values?: any): Promise<T | null>;
 	beginTransaction(): Promise<void>;
 	commit(): Promise<void>;
 	rollback(): Promise<void>;
