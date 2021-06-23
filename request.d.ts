@@ -1,6 +1,20 @@
 ﻿/// <reference types="node" />
 import http = require("http");
 import { URL } from "url";
+export interface RequestOptions {
+	/**
+		* Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		*/
+	headers?: any;
+	/**
+		* Optional request timeout in milliseconds (default: 30000).
+		*/
+	requestTimeout?: number;
+	/**
+		* Optional response timeout in milliseconds (default: 30000).
+		*/
+	responseTimeout?: number;
+}
 export interface CommonResponse {
 	/**
 		* Indicates whether the request was successful or not.
@@ -52,38 +66,38 @@ export interface BufferResponse extends CommonResponse {
 	result?: Buffer;
 }
 export declare class JSONRequest {
-	static delete(url: string | URL, headers?: any): Promise<JSONResponse>;
-	static deleteBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse>;
-	static deleteObject(url: string | URL, object: any, headers?: any): Promise<JSONResponse>;
-	static get(url: string | URL, headers?: any): Promise<JSONResponse>;
-	static patchBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse>;
-	static patchObject(url: string | URL, object: any, headers?: any): Promise<JSONResponse>;
-	static postBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse>;
-	static postObject(url: string | URL, object: any, headers?: any): Promise<JSONResponse>;
-	static putBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse>;
-	static putObject(url: string | URL, object: any, headers?: any): Promise<JSONResponse>;
+	static delete(url: string | URL, options?: RequestOptions): Promise<JSONResponse>;
+	static deleteBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<JSONResponse>;
+	static deleteObject(url: string | URL, object: any, options?: RequestOptions): Promise<JSONResponse>;
+	static get(url: string | URL, options?: RequestOptions): Promise<JSONResponse>;
+	static patchBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<JSONResponse>;
+	static patchObject(url: string | URL, object: any, options?: RequestOptions): Promise<JSONResponse>;
+	static postBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<JSONResponse>;
+	static postObject(url: string | URL, object: any, options?: RequestOptions): Promise<JSONResponse>;
+	static putBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<JSONResponse>;
+	static putObject(url: string | URL, object: any, options?: RequestOptions): Promise<JSONResponse>;
 }
 export declare class StringRequest {
-	static delete(url: string | URL, headers?: any): Promise<StringResponse>;
-	static deleteBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<StringResponse>;
-	static deleteObject(url: string | URL, object: any, headers?: any): Promise<StringResponse>;
-	static get(url: string | URL, headers?: any): Promise<StringResponse>;
-	static patchBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<StringResponse>;
-	static patchObject(url: string | URL, object: any, headers?: any): Promise<StringResponse>;
-	static postBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<StringResponse>;
-	static postObject(url: string | URL, object: any, headers?: any): Promise<StringResponse>;
-	static putBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<StringResponse>;
-	static putObject(url: string | URL, object: any, headers?: any): Promise<StringResponse>;
+	static delete(url: string | URL, options?: RequestOptions): Promise<StringResponse>;
+	static deleteBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<StringResponse>;
+	static deleteObject(url: string | URL, object: any, options?: RequestOptions): Promise<StringResponse>;
+	static get(url: string | URL, options?: RequestOptions): Promise<StringResponse>;
+	static patchBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<StringResponse>;
+	static patchObject(url: string | URL, object: any, options?: RequestOptions): Promise<StringResponse>;
+	static postBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<StringResponse>;
+	static postObject(url: string | URL, object: any, options?: RequestOptions): Promise<StringResponse>;
+	static putBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<StringResponse>;
+	static putObject(url: string | URL, object: any, options?: RequestOptions): Promise<StringResponse>;
 }
 export declare class BufferRequest {
-	static delete(url: string | URL, headers?: any): Promise<BufferResponse>;
-	static deleteBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<BufferResponse>;
-	static deleteObject(url: string | URL, object: any, headers?: any): Promise<BufferResponse>;
-	static get(url: string | URL, headers?: any): Promise<BufferResponse>;
-	static patchBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<BufferResponse>;
-	static patchObject(url: string | URL, object: any, headers?: any): Promise<BufferResponse>;
-	static postBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<BufferResponse>;
-	static postObject(url: string | URL, object: any, headers?: any): Promise<BufferResponse>;
-	static putBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<BufferResponse>;
-	static putObject(url: string | URL, object: any, headers?: any): Promise<BufferResponse>;
+	static delete(url: string | URL, options?: RequestOptions): Promise<BufferResponse>;
+	static deleteBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<BufferResponse>;
+	static deleteObject(url: string | URL, object: any, options?: RequestOptions): Promise<BufferResponse>;
+	static get(url: string | URL, options?: RequestOptions): Promise<BufferResponse>;
+	static patchBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<BufferResponse>;
+	static patchObject(url: string | URL, object: any, options?: RequestOptions): Promise<BufferResponse>;
+	static postBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<BufferResponse>;
+	static postObject(url: string | URL, object: any, options?: RequestOptions): Promise<BufferResponse>;
+	static putBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<BufferResponse>;
+	static putObject(url: string | URL, object: any, options?: RequestOptions): Promise<BufferResponse>;
 }

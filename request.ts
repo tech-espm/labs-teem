@@ -4,7 +4,24 @@ import { Readable, Transform } from "stream";
 import { URL } from "url";
 import zlib = require("zlib");
 
-async function send(method: string, url: string | URL, jsonBody: string | null, body: Buffer | null, bodyContentType: string | null, jsonResponse: boolean, rawBuffer: boolean, headers: any, redirCount: number): Promise<JSONResponse | StringResponse | BufferResponse> {
+export interface RequestOptions {
+	/**
+	 * Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+	 */
+	headers?: any;
+
+	/**
+	 * Optional request timeout in milliseconds (default: 30000).
+	 */
+	requestTimeout?: number;
+
+	/**
+	 * Optional response timeout in milliseconds (default: 30000).
+	 */
+	responseTimeout?: number;
+}
+
+async function send(method: string, url: string | URL, jsonBody: string | null, body: Buffer | null, bodyContentType: string | null, jsonResponse: boolean, rawBuffer: boolean, userOptions: RequestOptions | null | undefined, redirCount: number): Promise<JSONResponse | StringResponse | BufferResponse> {
 	return new Promise<JSONResponse | StringResponse | BufferResponse>(function (resolve, reject) {
 		try {
 			const u = (((typeof url) === "string") ? new URL(url as string) : (url as URL)),
@@ -32,7 +49,8 @@ async function send(method: string, url: string | URL, jsonBody: string | null, 
 					options.headers["content-type"] = (bodyContentType || "application/octet-stream");
 				}
 
-				if (headers) {
+				if (userOptions && userOptions.headers) {
+					const headers = userOptions.headers;
 					for (let h in headers)
 						options.headers[h] = headers[h];
 				}
@@ -102,7 +120,7 @@ async function send(method: string, url: string | URL, jsonBody: string | null, 
 						reject(err || new Error("Unknown error"));
 				};
 
-				response.setTimeout(30000, function () {
+				response.setTimeout((userOptions && userOptions.responseTimeout !== undefined) ? userOptions.responseTimeout : 30000, function () {
 					if (cleanUp())
 						reject(new Error("Response timeout"));
 				});
@@ -177,7 +195,7 @@ async function send(method: string, url: string | URL, jsonBody: string | null, 
 								errorHandler(new Error("Too many redirects! Last redirected address: " + response.headers.location));
 							} else {
 								const u: URL = new URL(response.headers.location, url);
-								resolve(send(method, u.toString(), jsonBody, body, bodyContentType, jsonResponse, rawBuffer, headers, redirCount + 1));
+								resolve(send(method, u.toString(), jsonBody, body, bodyContentType, jsonResponse, rawBuffer, userOptions, redirCount + 1));
 								cleanUp();
 							}
 							return;
@@ -233,7 +251,7 @@ async function send(method: string, url: string | URL, jsonBody: string | null, 
 				})
 			});
 
-			httpreq.setTimeout(30000, function () {
+			httpreq.setTimeout((userOptions && userOptions.requestTimeout !== undefined) ? userOptions.requestTimeout : 30000, function () {
 				reject(new Error("Request timeout"));
 			});
 
@@ -311,199 +329,199 @@ export interface BufferResponse extends CommonResponse {
 }
 
 export class JSONRequest {
-	public static async delete(url: string | URL, headers?: any): Promise<JSONResponse> {
-		return send("DELETE", url, null, null, null, true, false, headers, 0) as Promise<JSONResponse>;
+	public static async delete(url: string | URL, options?: RequestOptions): Promise<JSONResponse> {
+		return send("DELETE", url, null, null, null, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async deleteBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse> {
+	public static async deleteBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<JSONResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("DELETE", url, null, body, contentType, true, false, headers, 0) as Promise<JSONResponse>;
+		return send("DELETE", url, null, body, contentType, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async deleteObject(url: string | URL, object: any, headers?: any): Promise<JSONResponse> {
-		return send("DELETE", url, JSON.stringify(object), null, null, true, false, headers, 0) as Promise<JSONResponse>;
+	public static async deleteObject(url: string | URL, object: any, options?: RequestOptions): Promise<JSONResponse> {
+		return send("DELETE", url, JSON.stringify(object), null, null, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async get(url: string | URL, headers?: any): Promise<JSONResponse> {
-		return send("GET", url, null, null, null, true, false, headers, 0) as Promise<JSONResponse>;
+	public static async get(url: string | URL, options?: RequestOptions): Promise<JSONResponse> {
+		return send("GET", url, null, null, null, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async patchBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse> {
+	public static async patchBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<JSONResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("PATCH", url, null, body, contentType, true, false, headers, 0) as Promise<JSONResponse>;
+		return send("PATCH", url, null, body, contentType, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async patchObject(url: string | URL, object: any, headers?: any): Promise<JSONResponse> {
-		return send("PATCH", url, JSON.stringify(object), null, null, true, false, headers, 0) as Promise<JSONResponse>;
+	public static async patchObject(url: string | URL, object: any, options?: RequestOptions): Promise<JSONResponse> {
+		return send("PATCH", url, JSON.stringify(object), null, null, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async postBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse> {
+	public static async postBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<JSONResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("POST", url, null, body, contentType, true, false, headers, 0) as Promise<JSONResponse>;
+		return send("POST", url, null, body, contentType, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async postObject(url: string | URL, object: any, headers?: any): Promise<JSONResponse> {
-		return send("POST", url, JSON.stringify(object), null, null, true, false, headers, 0) as Promise<JSONResponse>;
+	public static async postObject(url: string | URL, object: any, options?: RequestOptions): Promise<JSONResponse> {
+		return send("POST", url, JSON.stringify(object), null, null, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async putBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<JSONResponse> {
+	public static async putBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<JSONResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("PUT", url, null, body, contentType, true, false, headers, 0) as Promise<JSONResponse>;
+		return send("PUT", url, null, body, contentType, true, false, options, 0) as Promise<JSONResponse>;
 	}
 
-	public static async putObject(url: string | URL, object: any, headers?: any): Promise<JSONResponse> {
-		return send("PUT", url, JSON.stringify(object), null, null, true, false, headers, 0) as Promise<JSONResponse>;
+	public static async putObject(url: string | URL, object: any, options?: RequestOptions): Promise<JSONResponse> {
+		return send("PUT", url, JSON.stringify(object), null, null, true, false, options, 0) as Promise<JSONResponse>;
 	}
 }
 
 export class StringRequest {
-	public static async delete(url: string | URL, headers?: any): Promise<StringResponse> {
-		return send("DELETE", url, null, null, null, false, false, headers, 0) as Promise<StringResponse>;
+	public static async delete(url: string | URL, options?: RequestOptions): Promise<StringResponse> {
+		return send("DELETE", url, null, null, null, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async deleteBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<StringResponse> {
+	public static async deleteBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<StringResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("DELETE", url, null, body, contentType, false, false, headers, 0) as Promise<StringResponse>;
+		return send("DELETE", url, null, body, contentType, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async deleteObject(url: string | URL, object: any, headers?: any): Promise<StringResponse> {
-		return send("DELETE", url, JSON.stringify(object), null, null, false, false, headers, 0) as Promise<StringResponse>;
+	public static async deleteObject(url: string | URL, object: any, options?: RequestOptions): Promise<StringResponse> {
+		return send("DELETE", url, JSON.stringify(object), null, null, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async get(url: string | URL, headers?: any): Promise<StringResponse> {
-		return send("GET", url, null, null, null, false, false, headers, 0) as Promise<StringResponse>;
+	public static async get(url: string | URL, options?: RequestOptions): Promise<StringResponse> {
+		return send("GET", url, null, null, null, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async patchBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<StringResponse> {
+	public static async patchBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<StringResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("PATCH", url, null, body, contentType, false, false, headers, 0) as Promise<StringResponse>;
+		return send("PATCH", url, null, body, contentType, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async patchObject(url: string | URL, object: any, headers?: any): Promise<StringResponse> {
-		return send("PATCH", url, JSON.stringify(object), null, null, false, false, headers, 0) as Promise<StringResponse>;
+	public static async patchObject(url: string | URL, object: any, options?: RequestOptions): Promise<StringResponse> {
+		return send("PATCH", url, JSON.stringify(object), null, null, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async postBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<StringResponse> {
+	public static async postBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<StringResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("POST", url, null, body, contentType, false, false, headers, 0) as Promise<StringResponse>;
+		return send("POST", url, null, body, contentType, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async postObject(url: string | URL, object: any, headers?: any): Promise<StringResponse> {
-		return send("POST", url, JSON.stringify(object), null, null, false, false, headers, 0) as Promise<StringResponse>;
+	public static async postObject(url: string | URL, object: any, options?: RequestOptions): Promise<StringResponse> {
+		return send("POST", url, JSON.stringify(object), null, null, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async putBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<StringResponse> {
+	public static async putBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<StringResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("PUT", url, null, body, contentType, false, false, headers, 0) as Promise<StringResponse>;
+		return send("PUT", url, null, body, contentType, false, false, options, 0) as Promise<StringResponse>;
 	}
 
-	public static async putObject(url: string | URL, object: any, headers?: any): Promise<StringResponse> {
-		return send("PUT", url, JSON.stringify(object), null, null, false, false, headers, 0) as Promise<StringResponse>;
+	public static async putObject(url: string | URL, object: any, options?: RequestOptions): Promise<StringResponse> {
+		return send("PUT", url, JSON.stringify(object), null, null, false, false, options, 0) as Promise<StringResponse>;
 	}
 }
 
 export class BufferRequest {
-	public static async delete(url: string | URL, headers?: any): Promise<BufferResponse> {
-		return send("DELETE", url, null, null, null, false, true, headers, 0) as Promise<BufferResponse>;
+	public static async delete(url: string | URL, options?: RequestOptions): Promise<BufferResponse> {
+		return send("DELETE", url, null, null, null, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async deleteBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<BufferResponse> {
+	public static async deleteBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<BufferResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("DELETE", url, null, body, contentType, false, true, headers, 0) as Promise<BufferResponse>;
+		return send("DELETE", url, null, body, contentType, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async deleteObject(url: string | URL, object: any, headers?: any): Promise<BufferResponse> {
-		return send("DELETE", url, JSON.stringify(object), null, null, false, true, headers, 0) as Promise<BufferResponse>;
+	public static async deleteObject(url: string | URL, object: any, options?: RequestOptions): Promise<BufferResponse> {
+		return send("DELETE", url, JSON.stringify(object), null, null, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async get(url: string | URL, headers?: any): Promise<BufferResponse> {
-		return send("GET", url, null, null, null, false, true, headers, 0) as Promise<BufferResponse>;
+	public static async get(url: string | URL, options?: RequestOptions): Promise<BufferResponse> {
+		return send("GET", url, null, null, null, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async patchBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<BufferResponse> {
+	public static async patchBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<BufferResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("PATCH", url, null, body, contentType, false, true, headers, 0) as Promise<BufferResponse>;
+		return send("PATCH", url, null, body, contentType, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async patchObject(url: string | URL, object: any, headers?: any): Promise<BufferResponse> {
-		return send("PATCH", url, JSON.stringify(object), null, null, false, true, headers, 0) as Promise<BufferResponse>;
+	public static async patchObject(url: string | URL, object: any, options?: RequestOptions): Promise<BufferResponse> {
+		return send("PATCH", url, JSON.stringify(object), null, null, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async postBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<BufferResponse> {
+	public static async postBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<BufferResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("POST", url, null, body, contentType, false, true, headers, 0) as Promise<BufferResponse>;
+		return send("POST", url, null, body, contentType, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async postObject(url: string | URL, object: any, headers?: any): Promise<BufferResponse> {
-		return send("POST", url, JSON.stringify(object), null, null, false, true, headers, 0) as Promise<BufferResponse>;
+	public static async postObject(url: string | URL, object: any, options?: RequestOptions): Promise<BufferResponse> {
+		return send("POST", url, JSON.stringify(object), null, null, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async putBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<BufferResponse> {
+	public static async putBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<BufferResponse> {
 		if (!body)
 			throw new Error("Invalid body");
 
 		if (!contentType)
 			throw new Error("Invalid contentType");
 
-		return send("PUT", url, null, body, contentType, false, true, headers, 0) as Promise<BufferResponse>;
+		return send("PUT", url, null, body, contentType, false, true, options, 0) as Promise<BufferResponse>;
 	}
 
-	public static async putObject(url: string | URL, object: any, headers?: any): Promise<BufferResponse> {
-		return send("PUT", url, JSON.stringify(object), null, null, false, true, headers, 0) as Promise<BufferResponse>;
+	public static async putObject(url: string | URL, object: any, options?: RequestOptions): Promise<BufferResponse> {
+		return send("PUT", url, JSON.stringify(object), null, null, false, true, options, 0) as Promise<BufferResponse>;
 	}
 }

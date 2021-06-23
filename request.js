@@ -5,7 +5,7 @@ const http = require("http");
 const https = require("https");
 const url_1 = require("url");
 const zlib = require("zlib");
-async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, rawBuffer, headers, redirCount) {
+async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, rawBuffer, userOptions, redirCount) {
 	return new Promise(function (resolve, reject) {
 		try {
 			const u = (((typeof url) === "string") ? new url_1.URL(url) : url), options = {
@@ -30,7 +30,8 @@ async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, 
 						reject(new Error("Invalid buffer length"));
 					options.headers["content-type"] = (bodyContentType || "application/octet-stream");
 				}
-				if (headers) {
+				if (userOptions && userOptions.headers) {
+					const headers = userOptions.headers;
 					for (let h in headers)
 						options.headers[h] = headers[h];
 				}
@@ -90,7 +91,7 @@ async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, 
 					if (cleanUp())
 						reject(err || new Error("Unknown error"));
 				};
-				response.setTimeout(30000, function () {
+				response.setTimeout((userOptions && userOptions.responseTimeout !== undefined) ? userOptions.responseTimeout : 30000, function () {
 					if (cleanUp())
 						reject(new Error("Response timeout"));
 				});
@@ -150,7 +151,7 @@ async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, 
 							}
 							else {
 								const u = new url_1.URL(response.headers.location, url);
-								resolve(send(method, u.toString(), jsonBody, body, bodyContentType, jsonResponse, rawBuffer, headers, redirCount + 1));
+								resolve(send(method, u.toString(), jsonBody, body, bodyContentType, jsonResponse, rawBuffer, userOptions, redirCount + 1));
 								cleanUp();
 							}
 							return;
@@ -205,7 +206,7 @@ async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, 
 					cleanUp();
 				});
 			});
-			httpreq.setTimeout(30000, function () {
+			httpreq.setTimeout((userOptions && userOptions.requestTimeout !== undefined) ? userOptions.requestTimeout : 30000, function () {
 				reject(new Error("Request timeout"));
 			});
 			httpreq.on("error", function (err) {
@@ -224,149 +225,149 @@ async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, 
 	});
 }
 class JSONRequest {
-	static async delete(url, headers) {
-		return send("DELETE", url, null, null, null, true, false, headers, 0);
+	static async delete(url, options) {
+		return send("DELETE", url, null, null, null, true, false, options, 0);
 	}
-	static async deleteBuffer(url, body, contentType, headers) {
+	static async deleteBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("DELETE", url, null, body, contentType, true, false, headers, 0);
+		return send("DELETE", url, null, body, contentType, true, false, options, 0);
 	}
-	static async deleteObject(url, object, headers) {
-		return send("DELETE", url, JSON.stringify(object), null, null, true, false, headers, 0);
+	static async deleteObject(url, object, options) {
+		return send("DELETE", url, JSON.stringify(object), null, null, true, false, options, 0);
 	}
-	static async get(url, headers) {
-		return send("GET", url, null, null, null, true, false, headers, 0);
+	static async get(url, options) {
+		return send("GET", url, null, null, null, true, false, options, 0);
 	}
-	static async patchBuffer(url, body, contentType, headers) {
+	static async patchBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("PATCH", url, null, body, contentType, true, false, headers, 0);
+		return send("PATCH", url, null, body, contentType, true, false, options, 0);
 	}
-	static async patchObject(url, object, headers) {
-		return send("PATCH", url, JSON.stringify(object), null, null, true, false, headers, 0);
+	static async patchObject(url, object, options) {
+		return send("PATCH", url, JSON.stringify(object), null, null, true, false, options, 0);
 	}
-	static async postBuffer(url, body, contentType, headers) {
+	static async postBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("POST", url, null, body, contentType, true, false, headers, 0);
+		return send("POST", url, null, body, contentType, true, false, options, 0);
 	}
-	static async postObject(url, object, headers) {
-		return send("POST", url, JSON.stringify(object), null, null, true, false, headers, 0);
+	static async postObject(url, object, options) {
+		return send("POST", url, JSON.stringify(object), null, null, true, false, options, 0);
 	}
-	static async putBuffer(url, body, contentType, headers) {
+	static async putBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("PUT", url, null, body, contentType, true, false, headers, 0);
+		return send("PUT", url, null, body, contentType, true, false, options, 0);
 	}
-	static async putObject(url, object, headers) {
-		return send("PUT", url, JSON.stringify(object), null, null, true, false, headers, 0);
+	static async putObject(url, object, options) {
+		return send("PUT", url, JSON.stringify(object), null, null, true, false, options, 0);
 	}
 }
 exports.JSONRequest = JSONRequest;
 class StringRequest {
-	static async delete(url, headers) {
-		return send("DELETE", url, null, null, null, false, false, headers, 0);
+	static async delete(url, options) {
+		return send("DELETE", url, null, null, null, false, false, options, 0);
 	}
-	static async deleteBuffer(url, body, contentType, headers) {
+	static async deleteBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("DELETE", url, null, body, contentType, false, false, headers, 0);
+		return send("DELETE", url, null, body, contentType, false, false, options, 0);
 	}
-	static async deleteObject(url, object, headers) {
-		return send("DELETE", url, JSON.stringify(object), null, null, false, false, headers, 0);
+	static async deleteObject(url, object, options) {
+		return send("DELETE", url, JSON.stringify(object), null, null, false, false, options, 0);
 	}
-	static async get(url, headers) {
-		return send("GET", url, null, null, null, false, false, headers, 0);
+	static async get(url, options) {
+		return send("GET", url, null, null, null, false, false, options, 0);
 	}
-	static async patchBuffer(url, body, contentType, headers) {
+	static async patchBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("PATCH", url, null, body, contentType, false, false, headers, 0);
+		return send("PATCH", url, null, body, contentType, false, false, options, 0);
 	}
-	static async patchObject(url, object, headers) {
-		return send("PATCH", url, JSON.stringify(object), null, null, false, false, headers, 0);
+	static async patchObject(url, object, options) {
+		return send("PATCH", url, JSON.stringify(object), null, null, false, false, options, 0);
 	}
-	static async postBuffer(url, body, contentType, headers) {
+	static async postBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("POST", url, null, body, contentType, false, false, headers, 0);
+		return send("POST", url, null, body, contentType, false, false, options, 0);
 	}
-	static async postObject(url, object, headers) {
-		return send("POST", url, JSON.stringify(object), null, null, false, false, headers, 0);
+	static async postObject(url, object, options) {
+		return send("POST", url, JSON.stringify(object), null, null, false, false, options, 0);
 	}
-	static async putBuffer(url, body, contentType, headers) {
+	static async putBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("PUT", url, null, body, contentType, false, false, headers, 0);
+		return send("PUT", url, null, body, contentType, false, false, options, 0);
 	}
-	static async putObject(url, object, headers) {
-		return send("PUT", url, JSON.stringify(object), null, null, false, false, headers, 0);
+	static async putObject(url, object, options) {
+		return send("PUT", url, JSON.stringify(object), null, null, false, false, options, 0);
 	}
 }
 exports.StringRequest = StringRequest;
 class BufferRequest {
-	static async delete(url, headers) {
-		return send("DELETE", url, null, null, null, false, true, headers, 0);
+	static async delete(url, options) {
+		return send("DELETE", url, null, null, null, false, true, options, 0);
 	}
-	static async deleteBuffer(url, body, contentType, headers) {
+	static async deleteBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("DELETE", url, null, body, contentType, false, true, headers, 0);
+		return send("DELETE", url, null, body, contentType, false, true, options, 0);
 	}
-	static async deleteObject(url, object, headers) {
-		return send("DELETE", url, JSON.stringify(object), null, null, false, true, headers, 0);
+	static async deleteObject(url, object, options) {
+		return send("DELETE", url, JSON.stringify(object), null, null, false, true, options, 0);
 	}
-	static async get(url, headers) {
-		return send("GET", url, null, null, null, false, true, headers, 0);
+	static async get(url, options) {
+		return send("GET", url, null, null, null, false, true, options, 0);
 	}
-	static async patchBuffer(url, body, contentType, headers) {
+	static async patchBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("PATCH", url, null, body, contentType, false, true, headers, 0);
+		return send("PATCH", url, null, body, contentType, false, true, options, 0);
 	}
-	static async patchObject(url, object, headers) {
-		return send("PATCH", url, JSON.stringify(object), null, null, false, true, headers, 0);
+	static async patchObject(url, object, options) {
+		return send("PATCH", url, JSON.stringify(object), null, null, false, true, options, 0);
 	}
-	static async postBuffer(url, body, contentType, headers) {
+	static async postBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("POST", url, null, body, contentType, false, true, headers, 0);
+		return send("POST", url, null, body, contentType, false, true, options, 0);
 	}
-	static async postObject(url, object, headers) {
-		return send("POST", url, JSON.stringify(object), null, null, false, true, headers, 0);
+	static async postObject(url, object, options) {
+		return send("POST", url, JSON.stringify(object), null, null, false, true, options, 0);
 	}
-	static async putBuffer(url, body, contentType, headers) {
+	static async putBuffer(url, body, contentType, options) {
 		if (!body)
 			throw new Error("Invalid body");
 		if (!contentType)
 			throw new Error("Invalid contentType");
-		return send("PUT", url, null, body, contentType, false, true, headers, 0);
+		return send("PUT", url, null, body, contentType, false, true, options, 0);
 	}
-	static async putObject(url, object, headers) {
-		return send("PUT", url, JSON.stringify(object), null, null, false, true, headers, 0);
+	static async putObject(url, object, options) {
+		return send("PUT", url, JSON.stringify(object), null, null, false, true, options, 0);
 	}
 }
 exports.BufferRequest = BufferRequest;

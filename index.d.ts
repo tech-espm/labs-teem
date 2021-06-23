@@ -2,7 +2,7 @@
 import express = require("express");
 import fs = require("fs");
 import { UploadedFile as UF } from "./fileSystem";
-import { CommonResponse as CommonRes, JSONResponse as JSONRes, StringResponse as StringRes, BufferResponse as BufferRes } from "./request";
+import { RequestOptions, CommonResponse as CommonRes, JSONResponse as JSONRes, StringResponse as StringRes, BufferResponse as BufferRes } from "./request";
 import type { PoolOptions } from "mysql2";
 import type { ServeStaticOptions } from "serve-static";
 import type { URL } from "url";
@@ -739,11 +739,11 @@ interface CommonRequest<T extends CommonRes> {
 		* This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
 					*
 		* @param url Complete URL of the request (including any optional query string parameters).
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	delete(url: string | URL, headers?: any): Promise<T>;
+	delete(url: string | URL, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a DELETE request with the given body.
 		*
@@ -754,11 +754,11 @@ interface CommonRequest<T extends CommonRes> {
 		* @param url Complete URL of the request (including any optional query string parameters).
 					* @param body Buffer containing the body of the request.
 					* @param contentType Value of the `Content-Type` header, indicating the type of the content in `body`.
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	deleteBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<T>;
+	deleteBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a DELETE request with an `application/json` body containing the JSON representation of `object`.
 		*
@@ -766,22 +766,22 @@ interface CommonRequest<T extends CommonRes> {
 					*
 		* @param url Complete URL of the request (including any optional query string parameters).
 					* @param object Object to be sent as the body of the request (this object is internally converted into a JSON string using `JSON.stringify()`).
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	deleteObject(url: string | URL, object: any, headers?: any): Promise<T>;
+	deleteObject(url: string | URL, object: any, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a GET request.
 		*
 		* This method fails if an error happens, such as a network communication error, but resolves with an object if a server response is received, even if its status code indicates failure, such as `404` or `500`.
 					*
 		* @param url Complete URL of the request (including any optional query string parameters).
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	get(url: string | URL, headers?: any): Promise<T>;
+	get(url: string | URL, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a PATCH request with the given body.
 		*
@@ -792,11 +792,11 @@ interface CommonRequest<T extends CommonRes> {
 		* @param url Complete URL of the request (including any optional query string parameters).
 					* @param body Buffer containing the body of the request.
 					* @param contentType Value of the `Content-Type` header, indicating the type of the content in `body`.
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	patchBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<T>;
+	patchBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a PATCH request with an `application/json` body containing the JSON representation of `object`.
 		*
@@ -804,11 +804,11 @@ interface CommonRequest<T extends CommonRes> {
 					*
 		* @param url Complete URL of the request (including any optional query string parameters).
 					* @param object Object to be sent as the body of the request (this object is internally converted into a JSON string using `JSON.stringify()`).
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	patchObject(url: string | URL, object: any, headers?: any): Promise<T>;
+	patchObject(url: string | URL, object: any, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a POST request with the given body.
 		*
@@ -819,11 +819,11 @@ interface CommonRequest<T extends CommonRes> {
 		* @param url Complete URL of the request (including any optional query string parameters).
 					* @param body Buffer containing the body of the request.
 					* @param contentType Value of the `Content-Type` header, indicating the type of the content in `body`.
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	postBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<T>;
+	postBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a POST request with an `application/json` body containing the JSON representation of `object`.
 		*
@@ -831,11 +831,11 @@ interface CommonRequest<T extends CommonRes> {
 					*
 		* @param url Complete URL of the request (including any optional query string parameters).
 					* @param object Object to be sent as the body of the request (this object is internally converted into a JSON string using `JSON.stringify()`).
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	postObject(url: string | URL, object: any, headers?: any): Promise<T>;
+	postObject(url: string | URL, object: any, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a PUT request with the given body.
 		*
@@ -846,11 +846,11 @@ interface CommonRequest<T extends CommonRes> {
 		* @param url Complete URL of the request (including any optional query string parameters).
 					* @param body Buffer containing the body of the request.
 					* @param contentType Value of the `Content-Type` header, indicating the type of the content in `body`.
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	putBuffer(url: string | URL, body: Buffer, contentType: string, headers?: any): Promise<T>;
+	putBuffer(url: string | URL, body: Buffer, contentType: string, options?: RequestOptions): Promise<T>;
 	/**
 		* Sends a PUT request with an `application/json` body containing the JSON representation of `object`.
 		*
@@ -858,11 +858,11 @@ interface CommonRequest<T extends CommonRes> {
 					*
 		* @param url Complete URL of the request (including any optional query string parameters).
 					* @param object Object to be sent as the body of the request (this object is internally converted into a JSON string using `JSON.stringify()`).
-		* @param headers Optional object containing additional request headers, in the following form: `{ "header name 1": "header value 1", "header name 2": "header value 2" }`.
+		* @param options Optional object containing additional settings.
 		*
 		* @returns A `Promise` object that will be resolved with the server response, even if its status code indicates failure, such as `404` or `500`.
 		*/
-	putObject(url: string | URL, object: any, headers?: any): Promise<T>;
+	putObject(url: string | URL, object: any, options?: RequestOptions): Promise<T>;
 }
 interface JSONRequest extends CommonRequest<app.JSONResponse> {
 }
