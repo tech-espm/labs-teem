@@ -2474,7 +2474,34 @@ const app: App = {
 			let viewsCacheSize = parseInt(config.viewsCacheSize as any);
 			if (isNaN(viewsCacheSize) || viewsCacheSize <= 0)
 				viewsCacheSize = 200;
-			ejs.cache = new LRU(viewsCacheSize);
+			const cache = new LRU({
+				max: viewsCacheSize
+			});
+			// Internally, ejs 3.1.7 declares its cache interface as:
+			//
+			// {
+			//     set: function (key, val) { ... },
+			//     get: function (key) { ... },
+			//     remove: function (key) { ... },
+			//     reset: function () { ... }
+			// }
+			//
+			// Eventhough I could not find any uses of cache.remove() in ejs
+			// source code, I decided it would be better to add it here, just in
+			// case, since LRUCache has not had a remove() method, even in version
+			// 6.0.0... Also, LRUCache's reset() has been marked as deprecated, so,
+			// it could be nice to add a check here...
+			if (!("remove" in cache)) {
+				if (("delete" in cache))
+					cache.remove = cache.delete;
+				else if (("del" in cache))
+					cache.remove = cache.delete;
+			}
+			if (!("reset" in cache)) {
+				if (("clear" in cache))
+					cache.reset = cache.clear;
+			}
+			ejs.cache = cache;
 			appExpress.set("views", viewsDir);
 			// https://www.npmjs.com/package/ejs
 			// https://www.npmjs.com/package/express-ejs-layouts
