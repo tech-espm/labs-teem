@@ -1,6 +1,6 @@
 {
   "name": "teem",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "Opinionated TypeScript wrapper around Express.js, EJS and MySQL.",
   "main": "index.js",
   "engines": {
@@ -43,16 +43,16 @@
   "dependencies": {
     "compression": "1.7.4",
     "cookie-parser": "1.4.6",
-    "ejs": "3.1.7",
+    "ejs": "3.1.8",
     "express": "4.18.1",
     "express-ejs-layouts": "2.5.1",
-    "lru-cache": "7.9.0",
-    "multer": "1.4.4",
+    "lru-cache": "7.10.1",
+    "multer": "1.4.5-lts.1",
     "mysql2": "2.3.3"
   },
   "devDependencies": {
-    "@types/express": "4.17.12",
-    "@types/express-serve-static-core": "4.17.20",
+    "@types/express": "4.17.13",
+    "@types/express-serve-static-core": "4.17.28",
     "@types/node": "14.14.21"
   }
 }
