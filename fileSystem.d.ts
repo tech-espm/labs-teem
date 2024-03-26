@@ -1,4 +1,5 @@
 ﻿/// <reference types="node" />
+/// <reference types="node" />
 import fs = require("fs");
 export interface UploadedFile {
 	/**
