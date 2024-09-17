@@ -2132,9 +2132,13 @@ function createRegularHandler(boundUserHandler: Function): Function {
 	// or an error handler. For a handler to be considered an error handler, it
 	// must at most 3 parameters.
 	return function(req: express.Request, res: express.Response, next: express.NextFunction) {
-		const r = boundUserHandler(req, res, next);
-		if (r)
-			Promise.resolve(r).catch(next);
+		try {
+			const r = boundUserHandler(req, res, next);
+			if (r)
+				Promise.resolve(r).catch(next);
+		} catch (ex: any) {
+			next(ex);
+		}
 	};
 }
 
@@ -2144,9 +2148,13 @@ function createErrorHandler(boundUserHandler: ErrorHandler): ErrorHandler {
 	// or an error handler. For a handler to be considered an error handler, it
 	// must have 4 parameters.
 	return function(err: any, req: express.Request, res: express.Response, next: express.NextFunction) {
-		const r = boundUserHandler(err, req, res, next);
-		if (r)
-			Promise.resolve(r).catch(next);
+		try {
+			const r = boundUserHandler(err, req, res, next);
+			if (r)
+				Promise.resolve(r).catch(next);
+		} catch (ex: any) {
+			next(ex);
+		}
 	};
 }
 
