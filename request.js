@@ -9,11 +9,13 @@ async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, 
 	return new Promise(function (resolve, reject) {
 		try {
 			const u = (((typeof url) === "string") ? new url_1.URL(url) : url), options = {
+				agent: false,
 				host: u.hostname || u.host,
 				port: (u.port || (u.protocol === "https:" ? 443 : 80)),
 				path: (u.search ? (u.pathname + u.search) : u.pathname),
 				method: method,
 				headers: {
+					"connection": "close",
 					"accept-encoding": "br, gzip, deflate",
 					"cache-control": "no-cache, no-store",
 					"pragma": "no-cache"

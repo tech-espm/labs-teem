@@ -26,11 +26,13 @@ async function send(method: string, url: string | URL, jsonBody: string | null, 
 		try {
 			const u = (((typeof url) === "string") ? new URL(url as string) : (url as URL)),
 				options: http.RequestOptions = {
+					agent: false,
 					host: u.hostname || u.host, // host includes the port, while hostname doesn't
 					port: (u.port || (u.protocol === "https:" ? 443 : 80)),
 					path: (u.search ? (u.pathname + u.search) : u.pathname),
 					method: method,
 					headers: {
+						"connection": "close",
 						"accept-encoding": "br, gzip, deflate",
 						"cache-control": "no-cache, no-store",
 						"pragma": "no-cache"
