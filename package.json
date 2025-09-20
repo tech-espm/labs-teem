@@ -1,6 +1,6 @@
 {
   "name": "teem",
-  "version": "0.0.28",
+  "version": "0.0.29",
   "description": "Opinionated TypeScript wrapper around Express.js, EJS and MySQL.",
   "main": "index.js",
   "engines": {
@@ -41,7 +41,7 @@
   "license": "MIT",
   "bundledDependencies": [],
   "dependencies": {
-    "compression": "1.7.5",
+    "compression": "1.8.1",
     "cookie-parser": "1.4.7",
     "ejs": "3.1.10",
     "express": "4.21.2",
