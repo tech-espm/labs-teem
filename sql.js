@@ -1,6 +1,7 @@
 ﻿"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Sql = exports.init = void 0;
+exports.Sql = void 0;
+exports.init = init;
 const mysql = require("mysql2");
 let pool;
 function init(poolConfig) {
@@ -9,7 +10,6 @@ function init(poolConfig) {
 	if (!pool)
 		pool = mysql.createPool(poolConfig);
 }
-exports.init = init;
 class Sql {
 	constructor() {
 		// https://www.npmjs.com/package/mysql2

@@ -1,6 +1,4 @@
-﻿/// <reference types="node" />
-/// <reference types="node" />
-import fs = require("fs");
+﻿import fs = require("fs");
 export interface UploadedFile {
 	/**
 		* Buffer containing the file's bytes.

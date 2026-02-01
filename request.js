@@ -10,7 +10,7 @@ async function send(method, url, jsonBody, body, bodyContentType, jsonResponse, 
 		try {
 			const u = (((typeof url) === "string") ? new url_1.URL(url) : url), options = {
 				agent: false,
-				host: u.hostname || u.host,
+				host: u.hostname || u.host, // host includes the port, while hostname doesn't
 				port: (u.port || (u.protocol === "https:" ? 443 : 80)),
 				path: (u.search ? (u.pathname + u.search) : u.pathname),
 				method: method,

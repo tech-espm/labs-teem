@@ -1,7 +1,4 @@
-﻿/// <reference types="node" />
-/// <reference types="node" />
-/// <reference types="node" />
-import express = require("express");
+﻿import express = require("express");
 import fs = require("fs");
 import { UploadedFile as UF } from "./fileSystem";
 import { RequestOptions, CommonResponse as CommonRes, JSONResponse as JSONRes, StringResponse as StringRes, BufferResponse as BufferRes } from "./request";

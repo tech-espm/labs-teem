@@ -1,7 +1,4 @@
-﻿/// <reference types="node" />
-/// <reference types="node" />
-/// <reference types="node" />
-import http = require("http");
+﻿import http = require("http");
 import { URL } from "url";
 export interface RequestOptions {
 	/**
